@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <time.h>
 #include "serialAV.h"
+#include <omp.h>
 using std::cout;
 using std::endl;
 using namespace AnisoVoro;
@@ -19,7 +20,7 @@ int main(int argc, char** argv) {
     double zLength = 0;
     if(argc < 4){
         std::cout << "ERROR CODE 1:" << std::endl;
-        std::cout << "\tPlease enter more arguments in ./run <printBool> <voxDegree>" << std::endl;
+        std::cout << "\tPlease enter more arguments in ./run <printBool> <voxDegree> <bool useGPU>" << std::endl;
         exit(1);
     }
 
@@ -33,6 +34,12 @@ int main(int argc, char** argv) {
     auto start = high_resolution_clock::now();
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
     SimBox sim = SimBox(xLength, yLength, zLength, voxDegree);
+    if(atoi(argv[3]) == 0){
+        sim.setDevice(false);
+    }
+    else{
+        sim.setDevice(true);
+    }
 
     int shapeSize = 0;
     for (double x = 0; x < 1; x = x + (1/voxDegree)){
@@ -41,7 +48,7 @@ int main(int argc, char** argv) {
         }
     }
     std::vector<Position> unitSquareArr(shapeSize);
-    cout << "Shape size is " << shapeSize << endl;
+    //cout << "Shape size is " << shapeSize << endl;
     shapeSize = 0;
     for (double x = 0; x < 1; x = x + (1/voxDegree)){
         for(double y = -2; y < 3; y = y + (1/voxDegree)){
@@ -56,8 +63,10 @@ int main(int argc, char** argv) {
     srand(time(NULL));
 
     //angle = (1.0/(rand() % 100)+15) * M_PI;
-    angle = M_PI * atoi(argv[3]);
-    
+    //angle = M_PI * atoi(argv[3]);
+    angle = 0;
+
+    /*
     cout << "Angle: " << angle << endl;
     q = Quaternion(cos(angle/2.0), 0, 0, sin(angle/2.0));
     sim.placeShape(square, q, Position(5, 8, 0), 1);
@@ -66,6 +75,21 @@ int main(int argc, char** argv) {
     cout << "Angle: " << angle << endl;
     q = Quaternion(cos(angle/2.0), 0, 0, sin(angle/2.0));
     sim.placeShape(square, q, Position(13, 17, 0), 2);
+    */
+
+    int shapeNumber = 0;
+    auto startPlacingShapes= high_resolution_clock::now();
+    #pragma omp parallel for
+    for(int x = 5; x < 90; x += 8){
+        for(int y = 5; y < 90; y += 8){
+            sim.placeShape(square, q, Position(x, y, 0), shapeNumber);
+            shapeNumber += 1;
+        }
+    }
+    auto stopPlacingShapes = high_resolution_clock::now();
+    auto durationPlacingShapes = duration_cast<microseconds>(stopPlacingShapes - startPlacingShapes);
+    cout << "Time taken to place shapes: " << durationPlacingShapes.count() << " microseconds" << endl;
+
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);

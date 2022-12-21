@@ -350,13 +350,25 @@ void SimBox::particleNum(int num) {
 int SimBox::particleNum() {
     return partNum;
 }
- 
 
-void SimBox::runVoro() {
+void SimBox::setDevice(bool useGPU){
+    this->useGPU = useGPU;
+}
+
+
+void SimBox::runVoro(){
     auto start = high_resolution_clock::now();
 
-    initializeQueue();
-    runLayerByLayer();
+    if(useGPU)
+    {
+        initializeQueue();
+        runLayerByLayer();
+    }
+    else
+    {
+        initializeQueue();
+        runLayerByLayer();
+    }
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
@@ -366,22 +378,41 @@ void SimBox::runVoro() {
 }
 
 void SimBox::initialize() {
-    //voxelTracker.reserve(pVoxArr.size());
-    //pVoxArr.clear();
+    int x, y, z;
     int i;
-    int zMax;
-    for(int x = 0; x < voxBoxDim.x; x++) {
-        for(int y = 0; y < voxBoxDim.y; y++) {
-            zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
-            //In the future if it's 2D vbd.z should be 1, not 0
-            for(int z = 0; z < zMax; z++) {
-                i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
-                pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim);
-                //pVoxArr.push_back(VoxelBit(i, false, 0, voxBoxDim));
-                //voxelTracker.push_back(0);
+    int voxX = voxBoxDim.x;
+    int voxY = voxBoxDim.y;
+    int zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
+
+    if(useGPU)
+    {
+        cout << "Using omp to initialize!" << endl;
+        #pragma omp target
+        #pragma omp parallel for collapse(2) num_threads(8)
+        for(x = 0; x < voxX; x++) {
+            for(y = 0; y < voxY; y++) {
+                //In the future if it's 2D vbd.z should be 1, not 0
+                for(z = 0; z < zMax; z++) {
+                    i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
+                    pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim);
+                }
             }
         }
     }
+    else{
+        cout << "Initializing using serial cpu" << endl;
+        for(x = 0; x < voxBoxDim.x; x++) {
+            for(y = 0; y < voxBoxDim.y; y++) {
+                zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
+                //In the future if it's 2D vbd.z should be 1, not 0
+                for(z = 0; z < zMax; z++) {
+                    i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
+                    pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim);
+                }
+            }
+        }
+    }
+
 }
 
 int SimBox::indexFromPosition(Position p) {

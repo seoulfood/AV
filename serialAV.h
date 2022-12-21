@@ -117,11 +117,13 @@ namespace AnisoVoro {
             void printBox();
             void printBoundaries();
             void printCells();
+            void setDevice(bool useGPU);
             void runVoro();
     
         //~SimBox();
     
         private:
+            bool useGPU; 
             std::vector<int> voxelTracker;
             std::vector<VoxelBit> neighbors;
             std::queue<int> layerRun;
