@@ -39,7 +39,7 @@ int Queue::front() {
 }
 
 bool Queue::empty() {
-    return(start == end)
+    return(start == end);
 }
 
 bool Queue::pop() {
@@ -69,7 +69,6 @@ int Queue::at(int i) {
     else{
         return queueArray[i - (arraysize - 1 - start)];
     }
-    return 
 }
 
 int Queue::size(){
@@ -79,7 +78,6 @@ int Queue::size(){
     else{
         return(arraysize - (start-end - 1));
     }
-    return 
 }
 
 Shape::Shape() {

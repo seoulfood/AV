@@ -15,8 +15,8 @@ using namespace AnisoVoro;
 using namespace std::chrono;
 
 int main(int argc, char** argv) {
-    double xLength = 250;
-    double yLength = 250;
+    double xLength = 25;
+    double yLength = 25;
     double zLength = 0;
     if(argc < 4){
         std::cout << "ERROR CODE 1:" << std::endl;
@@ -83,13 +83,18 @@ int main(int argc, char** argv) {
 
     int shapeNumber = 0;
     auto startPlacingShapes= high_resolution_clock::now();
+    /*
     #pragma omp parallel for num_threads(32)
     for(int x = 5; x < 90; x += 8){
         for(int y = 5; y < 90; y += 8){
             sim.placeShape(square, q, Position(x, y, 0), shapeNumber);
             shapeNumber += 1;
         }
-    }
+    }*/
+
+    sim.placeShape(square, q, Position(4, 2, 0), 0);
+    sim.placeShape(square, q, Position(11, 9, 0), 1);
+
     auto stopPlacingShapes = high_resolution_clock::now();
     auto durationPlacingShapes = duration_cast<microseconds>(stopPlacingShapes - startPlacingShapes);
     cout << "Time taken to place shapes: " << durationPlacingShapes.count() << " microseconds" << endl;

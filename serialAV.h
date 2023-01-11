@@ -32,7 +32,7 @@ namespace AnisoVoro {
             int arraysize;
             std::unique_ptr<int[]> queueArray;
 
-    }
+    };
 
     class Position {
         public:
