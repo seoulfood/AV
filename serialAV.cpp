@@ -1,3 +1,5 @@
+#include <omp.h>
+#include <cstdio>
 #include <iostream>
 #include <ostream>
 #include <unistd.h>
@@ -19,6 +21,66 @@ BIG NOTE: ONLY THE SIM BOX EVER DEALS WITH ACTUAL SIM DIMENSIONS
     ALL OTHER CLASSES/STRUCTS AND SUBROUTINE DEAL WITH THE 
     VOXELIZATION BOX AND DIMENSIONS
 */
+
+Queue::Queue(): arraysize{100}, queueArray{new int[arraysize]}
+{
+    this->start = 0;
+    this->end = 0;
+}
+
+Queue::Queue(int parraysize): arraysize{parraysize}, queueArray{new int[arraysize]}
+{
+    this->start = 0;
+    this->end = 0;
+}
+
+int Queue::front() {
+    return queueArray[start];
+}
+
+bool Queue::empty() {
+    return(start == end)
+}
+
+bool Queue::pop() {
+    if(empty()){
+        return false;
+    }
+    start = (arraysize - 1 == start) ? 0 : start + 1;
+    return true;
+}
+
+bool Queue::push(int val) {
+    //indicates a full queue
+    if(((end - start) == arraysize - 1) || (start-end) == 1){
+        //arraysize = arraysize * 1.5; //figure out how to grow, not necessary rn
+        return false;
+    }
+    end = (arraysize - 1 == end) ? : 0; end + 1;
+    queueArray[end] = val;
+    return true;
+
+}
+
+int Queue::at(int i) {
+    if(end > start){
+        return queueArray[start+i];
+    }
+    else{
+        return queueArray[i - (arraysize - 1 - start)];
+    }
+    return 
+}
+
+int Queue::size(){
+    if(end > start){
+        return(end-start);
+    }
+    else{
+        return(arraysize - (start-end - 1));
+    }
+    return 
+}
 
 Shape::Shape() {
     this->points.reserve(1);
@@ -269,6 +331,26 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
     this->voxCenter = Position(center.x * voxDegree,
                                center.y * voxDegree, 
                                center.z * voxDegree);
+    this->useGPU = false;
+    initialize();
+}
+
+SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, bool useGPU) {
+    simBoxDim = BoxDim(xLength, yLength, zLength);
+    voxBoxDim = BoxDim(floor(xLength*voxDegree), 
+              floor(yLength*voxDegree),
+              floor(zLength*voxDegree));
+    is2D = (zLength == 0) ? true : false;
+    int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
+    voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
+    std::vector<VoxelBit> tempVec(voxArrSize);
+    this->pVoxArr = tempVec;
+    this->voxDegree = voxDegree;
+    this->center = Position(0, 0, 0);
+    this->voxCenter = Position(center.x * voxDegree,
+                               center.y * voxDegree, 
+                               center.z * voxDegree);
+    this->useGPU = useGPU;
     initialize();
 }
 
@@ -359,7 +441,7 @@ void SimBox::setDevice(bool useGPU){
 void SimBox::runVoro(){
     auto start = high_resolution_clock::now();
 
-    if(useGPU)
+    if(this->useGPU)
     {
         initializeQueue();
         runLayerByLayer();
@@ -384,12 +466,18 @@ void SimBox::initialize() {
     int voxY = voxBoxDim.y;
     int zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
 
-    if(useGPU)
+    if(this->useGPU)
     {
         cout << "Using omp to initialize!" << endl;
-        #pragma omp target
-        #pragma omp parallel for collapse(2) num_threads(8)
+        int id, np, a;
+        //omp_set_num_threads(4);
+        //#pragma omp target
+        //cout << omp_get_num_threads() << endl;
+        //cout << omp_get_thread_num() << endl;
+        #pragma omp parallel for num_threads(32)
         for(x = 0; x < voxX; x++) {
+            id = omp_get_thread_num();
+            //cout << "Thread number: " << id << endl;
             for(y = 0; y < voxY; y++) {
                 //In the future if it's 2D vbd.z should be 1, not 0
                 for(z = 0; z < zMax; z++) {
@@ -558,15 +646,3 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
         }
     }
 }
-    /*
-    double r00 = 2 * (q.w * q.w + q.x * q.x) - 1;
-    double r01 = 2 * (q.x * q.y - q.w * q.z);
-    double r02 = 2 * (q.x * q.z + q.w * q.y);
-    double r10 = 2 * (q.x * q.y + q.w * q.z);
-    double r11 = 2 * (q.w * q.w + q.y * q.y) - 1;
-    double r12 = 2 * (q.y * q.z - q.w * q.x);
-    double r20 = 2 * (q.x * q.z - q.w * q.y);
-    double r21 = 2 * (q.y * q.z + q.w * q.x);
-    double r22 = 2 * (q.w * q.w + q.z * q.z) - 1;
-    */
-

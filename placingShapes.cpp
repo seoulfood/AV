@@ -33,11 +33,15 @@ int main(int argc, char** argv) {
     //std::vector<Position> unitPentagon(2*pow(voxDegree,2));
     auto start = high_resolution_clock::now();
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
-    SimBox sim = SimBox(xLength, yLength, zLength, voxDegree);
+    SimBox sim;
     if(atoi(argv[3]) == 0){
+        cout << "Setting to use serial" << endl;
+        sim = SimBox(xLength, yLength, zLength, voxDegree, false);
         sim.setDevice(false);
     }
     else{
+        cout << "Setting to use GPU" << endl;
+        sim = SimBox(xLength, yLength, zLength, voxDegree, true);
         sim.setDevice(true);
     }
 
@@ -79,7 +83,7 @@ int main(int argc, char** argv) {
 
     int shapeNumber = 0;
     auto startPlacingShapes= high_resolution_clock::now();
-    #pragma omp parallel for
+    #pragma omp parallel for num_threads(32)
     for(int x = 5; x < 90; x += 8){
         for(int y = 5; y < 90; y += 8){
             sim.placeShape(square, q, Position(x, y, 0), shapeNumber);

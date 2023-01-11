@@ -15,6 +15,25 @@ using namespace std::chrono;
 
 namespace AnisoVoro {
 
+    class Queue {
+        public:
+            Queue();
+            Queue(int initialSize);
+            int front();
+            bool empty();
+            bool pop();
+            bool push(int val);
+            int at(int i);
+            int size();
+
+        private:
+            int start;
+            int end;
+            int arraysize;
+            std::unique_ptr<int[]> queueArray;
+
+    }
+
     class Position {
         public:
             double x, y, z;
@@ -104,6 +123,7 @@ namespace AnisoVoro {
             SimBox(double xLength, double yLength, double zLength, 
                    std::vector<VoxelBit>& pVoxArr, int voxDegree);
             SimBox(double xLength, double yLength, double zLength, int voxDegree);
+            SimBox(double xLength, double yLength, double zLength, int voxDegree, bool useGPU);
             void setVoxel(Position p, bool isParticle, int particleNum);
             void placeShape(Shape s, Quaternion q, Position p, int particleNum);
             //void particleTypes(std::vector<int>& type_id, 
@@ -126,9 +146,14 @@ namespace AnisoVoro {
             bool useGPU; 
             std::vector<int> voxelTracker;
             std::vector<VoxelBit> neighbors;
-            std::queue<int> layerRun;
-            std::queue<int> originRun;
-            std::queue<int> boundaryIndices;
+
+            //std::queue<int> layerRun;
+            //std::queue<int> originRun;
+            //std::queue<int> boundaryIndices;
+
+            Queue layerRun;
+            Queue originRun;
+            Queue boundaryIndices;
     
             void initialize();
             void adjustPosition(Position &p);
