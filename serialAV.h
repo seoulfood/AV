@@ -20,16 +20,20 @@ namespace AnisoVoro {
             Queue();
             Queue(int initialSize);
             int front();
+            //bool full();
             bool empty();
             bool pop();
             bool push(int val);
             int at(int i);
             int size();
+            void display();
 
         private:
-            int start;
-            int end;
-            int arraysize;
+            int sz;
+            int head;
+            int tail;
+            int capacity;
+            bool full;
             std::unique_ptr<int[]> queueArray;
 
     };

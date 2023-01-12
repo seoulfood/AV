@@ -22,62 +22,112 @@ BIG NOTE: ONLY THE SIM BOX EVER DEALS WITH ACTUAL SIM DIMENSIONS
     VOXELIZATION BOX AND DIMENSIONS
 */
 
-Queue::Queue(): arraysize{100}, queueArray{new int[arraysize]}
+Queue::Queue(): capacity{100}, queueArray{new int[capacity]}
 {
-    this->start = 0;
-    this->end = 0;
+    this->head = 0;
+    this->tail = 0;
+    this->sz = 0;
 }
 
-Queue::Queue(int parraysize): arraysize{parraysize}, queueArray{new int[arraysize]}
+Queue::Queue(int c): capacity{c}, queueArray{new int[capacity]}
 {
-    this->start = 0;
-    this->end = 0;
+    this->head = 0;
+    this->tail = 0;
+    this->sz = 0;
 }
 
 int Queue::front() {
-    return queueArray[start];
+    return queueArray[head];
 }
 
+//bool Queue::full() {
+//}
+
 bool Queue::empty() {
-    return(start == end);
+    if(this->sz == 0){
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
 bool Queue::pop() {
     if(empty()){
         return false;
     }
-    start = (arraysize - 1 == start) ? 0 : start + 1;
+    if(head == capacity - 1){
+        head = 0;
+    }
+    else{
+        head += 1;
+    }
+    this->sz -= 1;
     return true;
 }
 
 bool Queue::push(int val) {
-    //indicates a full queue
-    if(((end - start) == arraysize - 1) || (start-end) == 1){
-        //arraysize = arraysize * 1.5; //figure out how to grow, not necessary rn
+    if(this->sz == capacity) {
+        cout << "Queue is full" << endl;
         return false;
     }
-    end = (arraysize - 1 == end) ? : 0; end + 1;
-    queueArray[end] = val;
-    return true;
-
+    else{
+        queueArray[tail] = val;
+        if (tail == capacity - 1){
+            tail = 0;
+        }
+        else{
+            tail += 1;
+        }
+        this->sz += 1;
+        return true;
+    }
 }
 
 int Queue::at(int i) {
-    if(end > start){
-        return queueArray[start+i];
+    int modI = (head + i) % (this->capacity);
+    return queueArray[modI];
+    /*
+    if(tail > head){
+        return queueArray[head+i];
     }
     else{
-        return queueArray[i - (arraysize - 1 - start)];
+        return queueArray[i - (capacity - 1 - head)];
     }
+    */
 }
 
 int Queue::size(){
-    if(end > start){
-        return(end-start);
+    /*
+    if(tail >= head){
+        return(tail-head);
     }
     else{
-        return(arraysize - (start-end - 1));
+        return(capacity - (head-tail - 1));
     }
+    */
+    return this->sz;
+}
+
+void Queue::display(){
+    //if(this->size() == 0){
+    if(this->empty()){
+        cout << "Queue is empty!";
+    }
+    else{
+        for(int i = 0; i < this->size(); i++){
+            cout << this->at(i) << " ";
+        }
+    }
+    cout << "\tSize: " << this->size();
+    cout << " head: " << this->head << " tail: " << this->tail;
+    cout << endl;
+
+    cout << "\tActual: ";
+    for(int i = 0; i < this->capacity; i++){
+        cout << this->queueArray[i] << " ";
+    }
+    cout << endl;
 }
 
 Shape::Shape() {
