@@ -43,6 +43,12 @@ int Queue::front() {
 //bool Queue::full() {
 //}
 
+void Queue::emptyQueue(){
+    this->head = 0;
+    this->tail = 0;
+    this->sz = 0;
+}
+
 bool Queue::empty() {
     if(this->sz == 0){
         return true;
@@ -350,6 +356,9 @@ SimBox::SimBox() {
     this->pVoxArr = VoxelVector().v;   
     this->voxDegree = 1;
     this->center = Position(0, 0, 0);
+    //this->layerRun = Queue();
+    //this->originRun = Queue();
+    //this->boundaryIndices = Queue();
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<VoxelBit>& pVoxArr, int voxDegree) {
@@ -361,6 +370,10 @@ SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<Voxel
     this->pVoxArr = pVoxArr;
     this->voxDegree = voxDegree;
     this->center = Position(0, 0, 0);
+    int queueDim = (floor(xLength*voxDegree) * floor(yLength*voxDegree) * floor(zLength*voxDegree)); 
+    //this->layerRun = Queue(queueDim);
+    //this->originRun = Queue(queueDim);
+    //this->boundaryIndices = Queue(queueDim);
     initialize();
 }
 
@@ -380,6 +393,9 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
                                center.y * voxDegree, 
                                center.z * voxDegree);
     this->useGPU = false;
+    //this->layerRun = Queue(voxArrSize/2);
+    //this->originRun = Queue(voxArrSize/2);
+    //this->boundaryIndices = Queue(voxArrSize/2);
     initialize();
 }
 
@@ -399,6 +415,9 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, bo
                                center.y * voxDegree, 
                                center.z * voxDegree);
     this->useGPU = useGPU;
+    //this->layerRun = Queue(voxArrSize/2);
+    //this->originRun = Queue(voxArrSize/2);
+    //this->boundaryIndices = Queue(voxArrSize/2);
     initialize();
 }
 
@@ -469,10 +488,6 @@ void SimBox::printCells(){
     }
 }
 
-//std::vector<double> SimBox::localDensity() {
-//
-//}
-
 void SimBox::particleNum(int num) {
     this->partNum = num;
 }
@@ -485,15 +500,15 @@ void SimBox::setDevice(bool useGPU){
     this->useGPU = useGPU;
 }
 
-
 void SimBox::runVoro(){
     auto start = high_resolution_clock::now();
 
     if(this->useGPU)
     {
         initializeQueue();
-        runLayerByLayer();
+        runLayerByLayerGPU();
     }
+    if(this->)
     else
     {
         initializeQueue();
@@ -502,8 +517,8 @@ void SimBox::runVoro(){
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Time taken to run voronoi: " << duration.count() 
-         << " microseconds" << endl;
+    cout << "Time taken to run voronoi: " << duration.count()/(1000000.0) 
+         << " seconds" << endl;
  
 }
 
@@ -574,6 +589,29 @@ void SimBox::initializeQueue() {
     }
     updateOrigins(1);
 }
+
+void SimBox::runLayerByLayerGPU() {
+    int currentLayer = 1;
+    VoxelBit v;
+    int i;
+
+    for(int i = 0; i < layerRun.size();i++){
+
+    }
+    layerRun.emptyQueue();
+    while(!layerRun.empty()) {
+        i = layerRun.front();
+        layerRun.pop(); 
+        v = pVoxArr.at(i);
+        if(v.layer != currentLayer) {
+            currentLayer += 1;
+            updateOrigins(currentLayer);
+        }
+        updateNeighbors(currentLayer, v);
+    }
+    updateOrigins(currentLayer);
+}
+
 
 void SimBox::runLayerByLayer() {
     int currentLayer = 1;

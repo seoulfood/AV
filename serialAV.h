@@ -27,6 +27,7 @@ namespace AnisoVoro {
             int at(int i);
             int size();
             void display();
+            void emptyQueue();
 
         private:
             int sz;
@@ -151,13 +152,13 @@ namespace AnisoVoro {
             std::vector<int> voxelTracker;
             std::vector<VoxelBit> neighbors;
 
-            //std::queue<int> layerRun;
-            //std::queue<int> originRun;
-            //std::queue<int> boundaryIndices;
+            std::queue<int> layerRun;
+            std::queue<int> originRun;
+            std::queue<int> boundaryIndices;
 
-            Queue layerRun;
-            Queue originRun;
-            Queue boundaryIndices;
+            //Queue layerRun;
+            //Queue originRun;
+            //Queue boundaryIndices;
     
             void initialize();
             void adjustPosition(Position &p);
@@ -165,6 +166,7 @@ namespace AnisoVoro {
             Position positionFromIndex(int i);
             void initializeQueue();
             void runLayerByLayer();
+            void runLayerByLayerGPU();
             void updateNeighbors(int currentLayer, VoxelBit& v);
             void updateOrigins(int currentLayer);
             void originUpdater(int currentLayer, VoxelBit& v);
