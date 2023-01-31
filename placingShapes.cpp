@@ -47,13 +47,15 @@ int main(int argc, char** argv) {
     SimBox sim;
     if(atoi(argv[3]) == 0){
         cout << "Setting to use serial" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree, false);
-        sim.setDevice(false);
+        sim = SimBox(xLength, yLength, zLength, voxDegree);
+    }
+    else if(atoi(argv[3]) == 1){
+        cout << "Setting to use MPI" << endl;
+        sim = SimBox(xLength, yLength, zLength, voxDegree, 1, P, rank);
     }
     else{
         cout << "Setting to use GPU" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree, true);
-        sim.setDevice(true);
+        sim = SimBox(xLength, yLength, zLength, voxDegree, 2);
     }
 
     int shapeSize = 0;

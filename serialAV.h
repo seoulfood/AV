@@ -101,6 +101,7 @@ namespace AnisoVoro {
             //~VoxelBit();
             VoxelBit();
             VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd); 
+            VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd, Position refCorner); 
             void getNeighborsIndices2D(BoxDim vbd, int (&neighbors)[8]);
             void getNeighborsIndices3D(BoxDim vbd, int (&neighbors)[26]);
     };
@@ -132,6 +133,7 @@ namespace AnisoVoro {
                    std::vector<VoxelBit>& pVoxArr, int voxDegree);
             SimBox(double xLength, double yLength, double zLength, int voxDegree);
             SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode);
+            SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize);
             void setVoxel(Position p, bool isParticle, int particleNum);
             void placeShape(Shape s, Quaternion q, Position p, int particleNum);
             //void particleTypes(std::vector<int>& type_id, 
@@ -145,8 +147,6 @@ namespace AnisoVoro {
             void printBox();
             void printBoundaries();
             void printCells();
-            void setDevice(int mode);
-            void setDevice(int mode, int rank);
             void runVoro();
     
         //~SimBox();
@@ -162,6 +162,8 @@ namespace AnisoVoro {
             std::queue<int> originRun;
             std::queue<int> boundaryIndices;
 
+            void setDevice(int mode);
+            void setDevice(int mode, int rank, int mpiWorldSize);
             void setPVoxelArraySize(double xLength, double yLength, double zLength);
             void initialize();
             void adjustPosition(Position &p);

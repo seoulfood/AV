@@ -268,10 +268,9 @@ VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position refCorner) {
     double iy = floor((i - (z*vbd.x*vbd.y))/vbd.x);
     double ix = i - (z*vbd.x*vbd.y) - (y*vbd.x);
 
-    this->x = x - refCorner.x;
-    this->y = y - refCorner.y;
-    this->z = z - refCorner.z;
-
+    this->x = ix + refCorner.x;
+    this->y = iy + refCorner.y;
+    this->z = iz + refCorner.z;
 
 }
 
@@ -379,9 +378,6 @@ SimBox::SimBox() {
     this->pVoxArr = VoxelVector().v;   
     this->voxDegree = 1;
     this->center = Position(0, 0, 0);
-    //this->layerRun = Queue();
-    //this->originRun = Queue();
-    //this->boundaryIndices = Queue();
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<VoxelBit>& pVoxArr, int voxDegree) {
@@ -393,10 +389,6 @@ SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<Voxel
     this->pVoxArr = pVoxArr;
     this->voxDegree = voxDegree;
     this->center = Position(0, 0, 0);
-    int queueDim = (floor(xLength*voxDegree) * floor(yLength*voxDegree) * floor(zLength*voxDegree)); 
-    //this->layerRun = Queue(queueDim);
-    //this->originRun = Queue(queueDim);
-    //this->boundaryIndices = Queue(queueDim);
     initialize();
 }
 
@@ -415,10 +407,7 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
     this->voxCenter = Position(center.x * voxDegree,
                                center.y * voxDegree, 
                                center.z * voxDegree);
-    this->mode = 0;
-    //this->layerRun = Queue(voxArrSize/2);
-    //this->originRun = Queue(voxArrSize/2);
-    //this->boundaryIndices = Queue(voxArrSize/2);
+    setDevice(0);
     initialize();
 }
 
@@ -437,12 +426,29 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     this->voxCenter = Position(center.x * voxDegree,
                                center.y * voxDegree, 
                                center.z * voxDegree);
-    this->mode = mode;
-    //this->layerRun = Queue(voxArrSize/2);
-    //this->originRun = Queue(voxArrSize/2);
-    //this->boundaryIndices = Queue(voxArrSize/2);
+    setDevice(mode);
     initialize();
 }
+
+SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize) {
+    simBoxDim = BoxDim(xLength, yLength, zLength);
+    voxBoxDim = BoxDim(floor(xLength*voxDegree), 
+              floor(yLength*voxDegree),
+              floor(zLength*voxDegree));
+    is2D = (zLength == 0) ? true : false;
+    int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
+    voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
+    std::vector<VoxelBit> tempVec(voxArrSize);
+    this->pVoxArr = tempVec;
+    this->voxDegree = voxDegree;
+    this->center = Position(0, 0, 0);
+    this->voxCenter = Position(center.x * voxDegree,
+                               center.y * voxDegree, 
+                               center.z * voxDegree);
+    setDevice(mode);
+    initialize();
+}
+
 
 void SimBox::setPVoxelArraySize(double xLength, double yLength, double zLength){
     if(mode == 0){
@@ -561,13 +567,13 @@ void SimBox::setDevice(int mode, int rank, int mpiWorldSize){
 }
 
 void SimBox::runVoro(){
+    /*
     double start;
     double stop;
     if(this->rank == 0){
         start = MPI_Wtime();
-
     }
-
+    */
     if(this->mode == 0)//Using plain Serial
     {
         initializeQueue();
@@ -575,8 +581,7 @@ void SimBox::runVoro(){
     }
     else if(this->mode == 1)//Using Dynamic MPI
     {
-        divideSimBox();
-        initializeQueueMPI();
+        initializeQueue();
         runLayerByLayerMPI();
     }
     else if(this->mode == 2)//OpenMP GPU
@@ -584,13 +589,13 @@ void SimBox::runVoro(){
         initializeQueue();
         //runLayerByLayerGPU(); still in progress
     }
-
+    /*
     if(this->rank == 0){
         stop = MPI_Wtime();
         double duration = stop - start;
         cout << "Time taken to run voronoi: " << duration 
              << " seconds" << endl;
-    }
+    }*/
 }
 
 void SimBox::divideSimBox(){
@@ -598,6 +603,7 @@ void SimBox::divideSimBox(){
     int yLength = this->voxBoxDim.y;
     int zLength = this->voxBoxDim.z;
 
+    int totalDomains = sqrt(2);
 
 }
 
@@ -624,6 +630,7 @@ void SimBox::initialize() {
     }
     else if(this->mode == 1){
         cout << "Initializing using MPI on cpu" << endl;
+        divideSimBox();
     }
     else if(this->mode == 2)
     {
@@ -690,6 +697,24 @@ void SimBox::runLayerByLayerGPU() {
 }
 
 void SimBox::runLayerByLayer() {
+    int currentLayer = 1;
+    VoxelBit v;
+    int i;
+
+    while(!layerRun.empty()) {
+        i = layerRun.front();
+        layerRun.pop(); 
+        v = pVoxArr.at(i);
+        if(v.layer != currentLayer) {
+            currentLayer += 1;
+            updateOrigins(currentLayer);
+        }
+        updateNeighbors(currentLayer, v);
+    }
+    updateOrigins(currentLayer);
+}
+
+void SimBox::runLayerByLayerMPI() {
     int currentLayer = 1;
     VoxelBit v;
     int i;
