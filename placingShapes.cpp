@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <iostream>
 #include <memory>
 #include <stdlib.h>
@@ -15,6 +16,13 @@ using namespace AnisoVoro;
 using namespace std::chrono;
 
 int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+
+    int P;
+    int rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &P);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     double xLength = 25;
     double yLength = 25;
     double zLength = 0;
@@ -31,7 +39,10 @@ int main(int argc, char** argv) {
     //pentagon area = 0.25 * sqrt(5*(5 + (2*sqrt(5))))pow(s,2)
     //where s is the length of one of the sides
     //std::vector<Position> unitPentagon(2*pow(voxDegree,2));
-    auto start = high_resolution_clock::now();
+    double start;
+    if(rank == 0){
+        start = MPI_Wtime();
+    }
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
     SimBox sim;
     if(atoi(argv[3]) == 0){
@@ -66,44 +77,31 @@ int main(int argc, char** argv) {
 
     srand(time(NULL));
 
-    //angle = (1.0/(rand() % 100)+15) * M_PI;
-    //angle = M_PI * atoi(argv[3]);
     angle = 0;
 
-    /*
-    cout << "Angle: " << angle << endl;
-    q = Quaternion(cos(angle/2.0), 0, 0, sin(angle/2.0));
-    sim.placeShape(square, q, Position(5, 8, 0), 1);
-
-    angle = M_PI/2;
-    cout << "Angle: " << angle << endl;
-    q = Quaternion(cos(angle/2.0), 0, 0, sin(angle/2.0));
-    sim.placeShape(square, q, Position(13, 17, 0), 2);
-    */
-
     int shapeNumber = 0;
-    auto startPlacingShapes= high_resolution_clock::now();
-    /*
-    #pragma omp parallel for num_threads(32)
-    for(int x = 5; x < 90; x += 8){
-        for(int y = 5; y < 90; y += 8){
-            sim.placeShape(square, q, Position(x, y, 0), shapeNumber);
-            shapeNumber += 1;
-        }
-    }*/
-
+    double startPlacingShapes;
+    double stopPlacingShapes;
+    double durationPlacingShapes;
+    double stop;
+    double duration;
+    if(rank == 0){
+        startPlacingShapes = MPI_Wtime();
+        
+    }
     sim.placeShape(square, q, Position(4, 2, 0), 0);
     sim.placeShape(square, q, Position(11, 9, 0), 1);
 
-    auto stopPlacingShapes = high_resolution_clock::now();
-    auto durationPlacingShapes = duration_cast<microseconds>(stopPlacingShapes - startPlacingShapes);
-    cout << "Time taken to place shapes: " << durationPlacingShapes.count() << " microseconds" << endl;
-
-
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Time taken to initialize voronoi: " << duration.count() 
-         << " microseconds" << endl;
+    if(rank == 0){
+        stopPlacingShapes = MPI_Wtime();
+        durationPlacingShapes = stopPlacingShapes - startPlacingShapes;
+        cout << "Time taken to place shapes: " << durationPlacingShapes << " microseconds" << endl;
+        stop = MPI_Wtime();
+        //duration = duration_cast<microseconds>(stop - start);
+        duration = stop - start;
+        cout << "Time taken to initialize voronoi: " << duration 
+             << " microseconds" << endl;
+    }
     //start = high_resolution_clock::now();
     sim.runVoro();
     //stop = high_resolution_clock::now();
@@ -111,11 +109,12 @@ int main(int argc, char** argv) {
     //cout << "Time taken to run voronoi: " << duration.count() 
     //     << " microseconds" << endl;
     int print = atoi(argv[1]);
-    if(print == 1){
-        sim.printBox();
-        sim.printBoundaries();
-        sim.printCells();
+    if(rank == 0){
+        if(print == 1){
+            sim.printBox();
+            sim.printBoundaries();
+            sim.printCells();
+        }
     }
-   
     return 0;
 }

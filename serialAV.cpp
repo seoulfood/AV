@@ -22,33 +22,24 @@ BIG NOTE: ONLY THE SIM BOX EVER DEALS WITH ACTUAL SIM DIMENSIONS
     VOXELIZATION BOX AND DIMENSIONS
 */
 
-Queue::Queue(): capacity{100}, queueArray{new int[capacity]}
-{
+Queue::Queue(): capacity{100}, queueArray{new int[capacity]}{
     this->head = 0;
     this->tail = 0;
     this->sz = 0;
 }
-
-Queue::Queue(int c): capacity{c}, queueArray{new int[capacity]}
-{
+Queue::Queue(int c): capacity{c}, queueArray{new int[capacity]}{
     this->head = 0;
     this->tail = 0;
     this->sz = 0;
 }
-
 int Queue::front() {
     return queueArray[head];
 }
-
-//bool Queue::full() {
-//}
-
 void Queue::emptyQueue(){
     this->head = 0;
     this->tail = 0;
     this->sz = 0;
 }
-
 bool Queue::empty() {
     if(this->sz == 0){
         return true;
@@ -57,7 +48,6 @@ bool Queue::empty() {
         return false;
     }
 }
-
 bool Queue::pop() {
     if(empty()){
         return false;
@@ -71,7 +61,6 @@ bool Queue::pop() {
     this->sz -= 1;
     return true;
 }
-
 bool Queue::push(int val) {
     if(this->sz == capacity) {
         cout << "Queue is full" << endl;
@@ -89,7 +78,6 @@ bool Queue::push(int val) {
         return true;
     }
 }
-
 int Queue::at(int i) {
     int modI = (head + i) % (this->capacity);
     return queueArray[modI];
@@ -102,7 +90,6 @@ int Queue::at(int i) {
     }
     */
 }
-
 int Queue::size(){
     /*
     if(tail >= head){
@@ -114,7 +101,6 @@ int Queue::size(){
     */
     return this->sz;
 }
-
 void Queue::display(){
     //if(this->size() == 0){
     if(this->empty()){
@@ -142,12 +128,10 @@ Shape::Shape() {
 Shape::Shape(std::vector<Position>& points) {
     this->points = points; 
 }
-
 Shape::Shape(std::vector<int> &shapePoints, int xDim, int yDim, int zDim, int voxDegree){
     int size = xDim * yDim * zDim;
     this->points.reserve(1);
 }
-
 //Shape::shapeFromVertices(std::vector<Position>& v, int vD) {
     //this->vertices = v;
     //this->voxDegree = vD;
@@ -231,7 +215,6 @@ Position rotatePoint(double pd[3], double qd[4]) {
 
 }
 
-
 BoxDim::BoxDim() {
     x = 0;
     y = 0;
@@ -258,12 +241,40 @@ VoxelIndex::VoxelIndex(Position vbp, BoxDim vbd) {
     this->z = vbp.z;
     this->i = (x) + (y*vbd.x) + (z * vbd.x * vbd.y);
 }
+VoxelIndex::VoxelIndex(Position vbp, BoxDim vbd, Position refCorner) {
+    //TO DO
+    //ref corner is the lowest x, y, and z
+    this->x = vbp.x;
+    this->y = vbp.y;
+    this->z = vbp.z;
+
+    double ix = x - refCorner.x;
+    double iy = y - refCorner.y;
+    double iz = z - refCorner.z;
+    
+    this->i = (ix) + (iy*vbd.x) + (iz * vbd.x * vbd.y);
+}
 VoxelIndex::VoxelIndex(int i, BoxDim vbd) {
     this->i = i;
     this->z = floor(i/(vbd.x*vbd.y));
     this->y = floor((i - (z*vbd.x*vbd.y))/vbd.x);
     this->x = i - (z*vbd.x*vbd.y) - (y*vbd.x);
 }
+VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position refCorner) {
+    //TO DO
+    this->i = i;
+
+    double iz = floor(i/(vbd.x*vbd.y));
+    double iy = floor((i - (z*vbd.x*vbd.y))/vbd.x);
+    double ix = i - (z*vbd.x*vbd.y) - (y*vbd.x);
+
+    this->x = x - refCorner.x;
+    this->y = y - refCorner.y;
+    this->z = z - refCorner.z;
+
+
+}
+
 
 VoxelBit::VoxelBit() {
     layer = -1;
@@ -283,7 +294,19 @@ VoxelBit::VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd) {
     }
     isBoundary = false;
 }
-
+VoxelBit::VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd, Position refCorner) {
+    //TO DO
+    index = VoxelIndex(i, vbd);
+    this->isParticle = isParticle;
+    if (isParticle) {
+        layer = 0;
+        origins.insert(particleNum);
+    }
+    else {
+        layer = -1;
+    }
+    isBoundary = false;
+}
 void VoxelBit::getNeighborsIndices2D(BoxDim vbd, int (&neighbors)[8]) {
     int vBoxX = vbd.x;
     int vBoxY = vbd.y;
@@ -392,14 +415,14 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
     this->voxCenter = Position(center.x * voxDegree,
                                center.y * voxDegree, 
                                center.z * voxDegree);
-    this->useGPU = false;
+    this->mode = 0;
     //this->layerRun = Queue(voxArrSize/2);
     //this->originRun = Queue(voxArrSize/2);
     //this->boundaryIndices = Queue(voxArrSize/2);
     initialize();
 }
 
-SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, bool useGPU) {
+SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode) {
     simBoxDim = BoxDim(xLength, yLength, zLength);
     voxBoxDim = BoxDim(floor(xLength*voxDegree), 
               floor(yLength*voxDegree),
@@ -414,11 +437,26 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, bo
     this->voxCenter = Position(center.x * voxDegree,
                                center.y * voxDegree, 
                                center.z * voxDegree);
-    this->useGPU = useGPU;
+    this->mode = mode;
     //this->layerRun = Queue(voxArrSize/2);
     //this->originRun = Queue(voxArrSize/2);
     //this->boundaryIndices = Queue(voxArrSize/2);
     initialize();
+}
+
+void SimBox::setPVoxelArraySize(double xLength, double yLength, double zLength){
+    if(mode == 0){
+        int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
+        voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
+        std::vector<VoxelBit> tempVec(voxArrSize);
+        this->pVoxArr = tempVec;
+    }
+    else if(mode == 1){
+        int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
+        voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
+        std::vector<VoxelBit> tempVec(voxArrSize);
+        this->pVoxArr = tempVec;
+    }
 }
 
 void SimBox::setVoxel(Position p, bool isParticle, int particleNum = -1) {
@@ -427,11 +465,11 @@ void SimBox::setVoxel(Position p, bool isParticle, int particleNum = -1) {
     pVoxArr.at(i) = VoxelBit(i, isParticle, particleNum, voxBoxDim);
 }
 
-//void adjustPosition(Position p){
-//    p.x = ((this->simBoxDim.x)/2.0) + (this->center.x);
-//   p.y = ((this->simBoyDim.y)/2.0) + (this->center.y);
-//   p.z = ((this->simBozDim.z)/2.0) + (this->center.z);
-//}
+void SimBox::adjustPosition(Position &p){
+    p.x = ((this->simBoxDim.x)/2.0) + (this->voxCenter.x);
+    p.y = ((this->simBoxDim.y)/2.0) + (this->voxCenter.y);
+    p.z = ((this->simBoxDim.z)/2.0) + (this->voxCenter.z);
+}
 
 void SimBox::placeShape(Shape s, Quaternion q, Position p, int particleNum = -1) {
     Position rp;
@@ -457,69 +495,110 @@ void SimBox::placeShape(Shape s, Quaternion q, Position p, int particleNum = -1)
 }
 
 void SimBox::printBox(){
-    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
-        VoxelBit v  = pVoxArr.at(i);
-        cout << "[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.layer << endl;  
+    if(mode == 0)
+    {
+        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+            Position p = positionFromIndex(i);
+            VoxelBit v  = pVoxArr.at(i);
+            cout << "[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.layer << endl;  
+        }
+    }
+    else{
+        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
     }
 }
-
 void SimBox::printBoundaries(){
-    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
-        VoxelBit v  = pVoxArr.at(i);
-        cout << "Boundary[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.isBoundary << endl;  
+    if(mode == 0)
+    {
+        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+            Position p = positionFromIndex(i);
+            VoxelBit v  = pVoxArr.at(i);
+            cout << "Boundary[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.isBoundary << endl;  
+        }
     }
-}
+    else{
+        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
+    }
 
+}
 void SimBox::printCells(){
-    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
-        VoxelBit v  = pVoxArr.at(i);
-        if(v.isParticle) {
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << *v.origins.begin() << endl;  
-        }
-        else if(v.isBoundary) {
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "B" << endl;  
-        }
-        else{
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "V" << endl;
+    if(mode == 0)
+    {
+        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+            Position p = positionFromIndex(i);
+            VoxelBit v  = pVoxArr.at(i);
+            if(v.isParticle) {
+                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << *v.origins.begin() << endl;  
+            }
+            else if(v.isBoundary) {
+                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "B" << endl;  
+            }
+            else{
+                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "V" << endl;
+            }
         }
     }
+    else{
+        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
+    }
 }
-
 void SimBox::particleNum(int num) {
     this->partNum = num;
 }
- 
 int SimBox::particleNum() {
     return partNum;
 }
 
-void SimBox::setDevice(bool useGPU){
-    this->useGPU = useGPU;
+void SimBox::setDevice(int mode){
+    this->mode = mode;
+    this->rank = 0;
+    this->mpiWorldSize = 1;
+}
+void SimBox::setDevice(int mode, int rank, int mpiWorldSize){
+    this->mode = mode;
+    this->rank = rank;
+    this->mpiWorldSize = mpiWorldSize;
 }
 
 void SimBox::runVoro(){
-    auto start = high_resolution_clock::now();
+    double start;
+    double stop;
+    if(this->rank == 0){
+        start = MPI_Wtime();
 
-    if(this->useGPU)
-    {
-        initializeQueue();
-        runLayerByLayerGPU();
     }
-    if(this->)
-    else
+
+    if(this->mode == 0)//Using plain Serial
     {
         initializeQueue();
         runLayerByLayer();
     }
+    else if(this->mode == 1)//Using Dynamic MPI
+    {
+        divideSimBox();
+        initializeQueueMPI();
+        runLayerByLayerMPI();
+    }
+    else if(this->mode == 2)//OpenMP GPU
+    {
+        initializeQueue();
+        //runLayerByLayerGPU(); still in progress
+    }
 
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Time taken to run voronoi: " << duration.count()/(1000000.0) 
-         << " seconds" << endl;
- 
+    if(this->rank == 0){
+        stop = MPI_Wtime();
+        double duration = stop - start;
+        cout << "Time taken to run voronoi: " << duration 
+             << " seconds" << endl;
+    }
+}
+
+void SimBox::divideSimBox(){
+    int xLength = this->voxBoxDim.x;
+    int yLength = this->voxBoxDim.y;
+    int zLength = this->voxBoxDim.z;
+
+
 }
 
 void SimBox::initialize() {
@@ -529,19 +608,12 @@ void SimBox::initialize() {
     int voxY = voxBoxDim.y;
     int zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
 
-    if(this->useGPU)
+    if(this->mode == 0)
     {
-        cout << "Using omp to initialize!" << endl;
-        int id, np, a;
-        //omp_set_num_threads(4);
-        //#pragma omp target
-        //cout << omp_get_num_threads() << endl;
-        //cout << omp_get_thread_num() << endl;
-        #pragma omp parallel for num_threads(32)
-        for(x = 0; x < voxX; x++) {
-            id = omp_get_thread_num();
-            //cout << "Thread number: " << id << endl;
-            for(y = 0; y < voxY; y++) {
+        cout << "Initializing using serial cpu" << endl;
+        for(x = 0; x < voxBoxDim.x; x++) {
+            for(y = 0; y < voxBoxDim.y; y++) {
+                zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
                 //In the future if it's 2D vbd.z should be 1, not 0
                 for(z = 0; z < zMax; z++) {
                     i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
@@ -550,12 +622,17 @@ void SimBox::initialize() {
             }
         }
     }
-    else{
-        cout << "Initializing using serial cpu" << endl;
-        for(x = 0; x < voxBoxDim.x; x++) {
-            for(y = 0; y < voxBoxDim.y; y++) {
-                zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
-                //In the future if it's 2D vbd.z should be 1, not 0
+    else if(this->mode == 1){
+        cout << "Initializing using MPI on cpu" << endl;
+    }
+    else if(this->mode == 2)
+    {
+        cout << "Using omp to initialize!" << endl;
+        int id, np, a;
+        #pragma omp parallel for num_threads(32)
+        for(x = 0; x < voxX; x++) {
+            id = omp_get_thread_num();
+            for(y = 0; y < voxY; y++) {
                 for(z = 0; z < zMax; z++) {
                     i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
                     pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim);
@@ -598,7 +675,7 @@ void SimBox::runLayerByLayerGPU() {
     for(int i = 0; i < layerRun.size();i++){
 
     }
-    layerRun.emptyQueue();
+    //layerRun.emptyQueue();
     while(!layerRun.empty()) {
         i = layerRun.front();
         layerRun.pop(); 
@@ -611,7 +688,6 @@ void SimBox::runLayerByLayerGPU() {
     }
     updateOrigins(currentLayer);
 }
-
 
 void SimBox::runLayerByLayer() {
     int currentLayer = 1;

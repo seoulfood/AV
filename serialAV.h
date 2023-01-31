@@ -86,7 +86,9 @@ namespace AnisoVoro {
             int i, x, y, z;
             VoxelIndex();
             VoxelIndex(Position vbp, BoxDim vbd);
+            VoxelIndex(Position vbp, BoxDim vbd, Position refCorner);
             VoxelIndex(int i, BoxDim vbd);
+            VoxelIndex(int i, BoxDim vbd, Position refCorner);
             //~VoxelIndex();
     };
     
@@ -123,12 +125,13 @@ namespace AnisoVoro {
             int partNum;
             Position center;
             Position voxCenter;
+            int mode; 
 
             SimBox();    
             SimBox(double xLength, double yLength, double zLength, 
                    std::vector<VoxelBit>& pVoxArr, int voxDegree);
             SimBox(double xLength, double yLength, double zLength, int voxDegree);
-            SimBox(double xLength, double yLength, double zLength, int voxDegree, bool useGPU);
+            SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode);
             void setVoxel(Position p, bool isParticle, int particleNum);
             void placeShape(Shape s, Quaternion q, Position p, int particleNum);
             //void particleTypes(std::vector<int>& type_id, 
@@ -142,30 +145,33 @@ namespace AnisoVoro {
             void printBox();
             void printBoundaries();
             void printCells();
-            void setDevice(bool useGPU);
+            void setDevice(int mode);
+            void setDevice(int mode, int rank);
             void runVoro();
     
         //~SimBox();
     
         private:
-            bool useGPU; 
+            int rank; //MPI Rank
+            int mpiWorldSize;//MPI world size
+            std::vector<int> mpiNeighbors;
             std::vector<int> voxelTracker;
-            std::vector<VoxelBit> neighbors;
 
+            std::vector<VoxelBit> neighbors;
             std::queue<int> layerRun;
             std::queue<int> originRun;
             std::queue<int> boundaryIndices;
 
-            //Queue layerRun;
-            //Queue originRun;
-            //Queue boundaryIndices;
-    
+            void setPVoxelArraySize(double xLength, double yLength, double zLength);
             void initialize();
             void adjustPosition(Position &p);
             int indexFromPosition(Position p); 
             Position positionFromIndex(int i);
             void initializeQueue();
             void runLayerByLayer();
+            void divideSimBox();
+            void initializeQueueMPI();
+            void runLayerByLayerMPI();
             void runLayerByLayerGPU();
             void updateNeighbors(int currentLayer, VoxelBit& v);
             void updateOrigins(int currentLayer);
