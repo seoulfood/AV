@@ -8,7 +8,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <time.h>
-#include "serialAV.h"
+#include "AV.h"
 #include <omp.h>
 using std::cout;
 using std::endl;
