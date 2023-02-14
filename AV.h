@@ -8,7 +8,7 @@
 #include <vector>
 using std::cout;
 using std::endl;
-using namespace std::chrono;
+//using namespace std::chrono;
 
 #ifndef AV_H
 #define AV_H
@@ -171,7 +171,6 @@ namespace AnisoVoro {
             Position positionFromIndex(int i);
             void initializeQueue();
             void runLayerByLayer();
-            void divideSimBox();
             void initializeQueueMPI();
             void runLayerByLayerMPI();
             void runLayerByLayerGPU();
@@ -179,6 +178,55 @@ namespace AnisoVoro {
             void updateOrigins(int currentLayer);
             void originUpdater(int currentLayer, VoxelBit& v);
     };
+
+    class DomainDecomposition{
+        public:
+
+        int rank;
+        int P;
+        int mainDomainNumber;
+        int localNumber;
+        int length;
+        int mainCount; 
+        int numberInLocal;
+
+        int localXMin;
+        int localXMax;
+
+        int localYMin;
+        int localYMax;
+
+        int localZMin;
+        int localZMax;
+
+        DomainDecomposition();
+        DomainDecomposition(int rank, int P);
+
+        void divideSimBox2D(int xLength, int yLength);
+        void divideSimBox3D(int xLength, int yLength, int zLength);
+
+        /*
+        void sendPlusX();
+        void sendPlusY();
+        void sendPlusZ();
+        void sendMinusX();
+        void sendMinusY();
+        void sendMinusZ();
+
+        void receivePlusX();
+        void receivePlusY();
+        void receivePlusZ();
+        void receiveMinusX();
+        void receiveMinusY();
+        void receiveMinusZ();
+
+        void sendData(&int data, int recvRank);
+        void ReceiveData(&int data, int sendRank);
+
+        */
+
+    };
+
     
 }
 

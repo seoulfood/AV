@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <omp.h>
 #include <cstdio>
 #include <iostream>
@@ -13,8 +14,8 @@
 #include "AV.h"
 using std::cout;
 using std::endl;
-using namespace std::chrono;
 using namespace AnisoVoro;
+//using namespace std::chrono;
 
 /*
 BIG NOTE: ONLY THE SIM BOX EVER DEALS WITH ACTUAL SIM DIMENSIONS
@@ -274,7 +275,6 @@ VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position refCorner) {
 
 }
 
-
 VoxelBit::VoxelBit() {
     layer = -1;
     index = VoxelIndex();
@@ -449,7 +449,6 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     initialize();
 }
 
-
 void SimBox::setPVoxelArraySize(double xLength, double yLength, double zLength){
     if(mode == 0){
         int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
@@ -567,13 +566,11 @@ void SimBox::setDevice(int mode, int rank, int mpiWorldSize){
 }
 
 void SimBox::runVoro(){
-    /*
     double start;
     double stop;
     if(this->rank == 0){
         start = MPI_Wtime();
     }
-    */
     if(this->mode == 0)//Using plain Serial
     {
         initializeQueue();
@@ -589,23 +586,14 @@ void SimBox::runVoro(){
         initializeQueue();
         //runLayerByLayerGPU(); still in progress
     }
-    /*
     if(this->rank == 0){
         stop = MPI_Wtime();
         double duration = stop - start;
         cout << "Time taken to run voronoi: " << duration 
              << " seconds" << endl;
-    }*/
+    }
 }
 
-void SimBox::divideSimBox(){
-    int xLength = this->voxBoxDim.x;
-    int yLength = this->voxBoxDim.y;
-    int zLength = this->voxBoxDim.z;
-
-    int totalDomains = sqrt(2);
-
-}
 
 void SimBox::initialize() {
     int x, y, z;
@@ -630,7 +618,7 @@ void SimBox::initialize() {
     }
     else if(this->mode == 1){
         cout << "Initializing using MPI on cpu" << endl;
-        divideSimBox();
+        //divideSimBox();
     }
     else if(this->mode == 2)
     {
@@ -832,4 +820,89 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
             pVoxArr.at(v.index.i) = v;
         }
     }
+}
+
+
+DomainDecomposition::DomainDecomposition(){
+    this->rank = 1;
+    this->P = 1;
+}
+DomainDecomposition::DomainDecomposition(int rank, int P){
+    this->rank = rank;
+    this->P = P;
+}
+
+void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
+    this->length = floor(sqrt(this->P));
+    this->mainCount = std::pow(length, 2);
+    this->mainDomainNumber = this->rank % mainCount;
+    this->localNumber = this->rank / mainCount; 
+
+
+    int xSpace = xLength / length; 
+    int ySpace = yLength / length; 
+    int zSpace = 0; 
+
+    int xMod = mainDomainNumber % length;
+    int yMod = mainDomainNumber / length;
+
+    this->numberInLocal = (mainDomainNumber >= P % mainCount) ? (P/mainCount) : ((P/mainCount) + 1);
+    int localxMod = xSpace / numberInLocal;
+
+    //cout << "xSpace is " << xSpace << "\tlocalxMod is " << localxMod << endl;
+
+    cout << "Rank " << this->rank << "\tMain Domain: " << this->mainDomainNumber << "\tlocal rank: " << this->localNumber << "\tlocal number total "<< numberInLocal << endl;
+
+    if(numberInLocal == 1){
+        this->localXMin = xSpace * xMod;
+        this->localXMax = (xMod == xLength - 1) ? (xLength): (localXMin + xSpace - 1);
+    }
+    else{
+        //cout << "There are subspaces managed by rank " << this->rank << endl;
+        this->localXMin = (xSpace * xMod) + (localNumber * localxMod);
+        if(localNumber + 1 == numberInLocal){
+            this->localXMax = (xMod == xLength - 1) ? (xLength): ((xSpace*xMod) + xSpace - 1);
+        }
+        else{
+            this->localXMax = (localXMin + (localxMod) - 1);
+        }
+    }
+
+    this->localYMin = ySpace * yMod;
+    this->localYMax = (yMod == length - 1) ? (yLength): (localYMin + ySpace - 1);
+
+    this->localZMin = 0;
+    this->localZMax = 0;
+}
+
+
+void DomainDecomposition::divideSimBox3D(int xLength, int yLength, int zLength){
+    cout << "Not yet implemented!" << endl;
+}
+
+void DomainDecomposition::PlusXRank(){
+    if(this->localNumber + 1 == this->numberInLocal)
+}
+void DomainDecomposition::PlusY(){
+
+}
+void DomainDecomposition::PlusZ(){
+
+}
+void DomainDecomposition::MinusX(){
+
+}
+void DomainDecomposition::MinusY(){
+
+}
+void DomainDecomposition::MinusZ(){
+
+}
+
+void DomainDecomposition::sendData(&int data, int recvRank){
+
+}
+
+void DomainDecomposition::ReceiveData(&int data, int sendRank){
+
 }

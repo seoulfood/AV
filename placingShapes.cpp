@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &P);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    cout << "Hello from rank " << rank << endl;
+
     double xLength = 25;
     double yLength = 25;
     double zLength = 0;
@@ -44,6 +46,7 @@ int main(int argc, char** argv) {
         start = MPI_Wtime();
     }
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
+    
     SimBox sim;
     if(atoi(argv[3]) == 0){
         cout << "Setting to use serial" << endl;
@@ -51,7 +54,7 @@ int main(int argc, char** argv) {
     }
     else if(atoi(argv[3]) == 1){
         cout << "Setting to use MPI" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree, 1, P, rank);
+        sim = SimBox(xLength, yLength, zLength, voxDegree, 1, rank, P);
     }
     else{
         cout << "Setting to use GPU" << endl;
@@ -118,5 +121,7 @@ int main(int argc, char** argv) {
             sim.printCells();
         }
     }
+
+    MPI_Finalize();
     return 0;
 }
