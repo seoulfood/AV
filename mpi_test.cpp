@@ -19,19 +19,20 @@ class Functions{
     public:
         int rank;
         int P;
+        DomainDecomposition dcomp;
     
         Functions(int rank, int P);
     
         void printRank();
         void receiveLeftNeighbor();
         void sendRightNeighbor();
-        void splitUpDomain(int xLength, int yLength, int zLength);
+        void splitUpDomain(int xLength, int yLength, int zLength, int print);
 
 };
 
 
-void Functions::splitUpDomain(int xLength, int yLength, int zLength){
-    DomainDecomposition dcomp = DomainDecomposition(this->rank, this->P);
+void Functions::splitUpDomain(int xLength, int yLength, int zLength, int print){
+    this->dcomp = DomainDecomposition(this->rank, this->P);
 
     dcomp.divideSimBox2D(xLength, yLength);
 
@@ -39,7 +40,9 @@ void Functions::splitUpDomain(int xLength, int yLength, int zLength){
     {
         for(int y = dcomp.localYMin; y <= dcomp.localYMax; y++)
         {
-            cout << "[" << x << "][" << y << "][" << "0" << "]" << " is " << this->rank << endl;  
+            if(print == 1){
+                cout << "[" << x << "][" << y << "][" << "0" << "]" << " is " << this->rank << endl;  
+            }
             int a = 5;
         }
     }
@@ -88,7 +91,7 @@ int main(int argc, char** argv) {
     //func.printRank();
     //func.sendRightNeighbor();
     //func.receiveLeftNeighbor();
-    func.splitUpDomain(18, 18, 0);
+    func.splitUpDomain(18, 18, 0, atoi(argv[1]));
 
     MPI_Finalize();
 

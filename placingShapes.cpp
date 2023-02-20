@@ -119,6 +119,7 @@ int main(int argc, char** argv) {
             sim.printBox();
             sim.printBoundaries();
             sim.printCells();
+            sim.printVoxRank();
         }
     }
 

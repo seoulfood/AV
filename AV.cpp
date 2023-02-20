@@ -243,8 +243,6 @@ VoxelIndex::VoxelIndex(Position vbp, BoxDim vbd) {
     this->i = (x) + (y*vbd.x) + (z * vbd.x * vbd.y);
 }
 VoxelIndex::VoxelIndex(Position vbp, BoxDim vbd, Position refCorner) {
-    //TO DO
-    //ref corner is the lowest x, y, and z
     this->x = vbp.x;
     this->y = vbp.y;
     this->z = vbp.z;
@@ -262,7 +260,6 @@ VoxelIndex::VoxelIndex(int i, BoxDim vbd) {
     this->x = i - (z*vbd.x*vbd.y) - (y*vbd.x);
 }
 VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position refCorner) {
-    //TO DO
     this->i = i;
 
     double iz = floor(i/(vbd.x*vbd.y));
@@ -295,7 +292,7 @@ VoxelBit::VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd) {
 }
 VoxelBit::VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd, Position refCorner) {
     //TO DO
-    index = VoxelIndex(i, vbd);
+    index = VoxelIndex(i, vbd, refCorner);
     this->isParticle = isParticle;
     if (isParticle) {
         layer = 0;
@@ -377,7 +374,7 @@ SimBox::SimBox() {
     is2D = false;
     this->pVoxArr = VoxelVector().v;   
     this->voxDegree = 1;
-    this->center = Position(0, 0, 0);
+    this->refCorner = Position(0, 0, 0);
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<VoxelBit>& pVoxArr, int voxDegree) {
@@ -388,11 +385,12 @@ SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<Voxel
     is2D = (zLength == 0) ? true : false;
     this->pVoxArr = pVoxArr;
     this->voxDegree = voxDegree;
-    this->center = Position(0, 0, 0);
+    this->refCorner = Position(0, 0, 0);
     initialize();
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
+    setDevice(0);
     simBoxDim = BoxDim(xLength, yLength, zLength);
     voxBoxDim = BoxDim(floor(xLength*voxDegree), 
               floor(yLength*voxDegree),
@@ -403,15 +401,15 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree) {
     std::vector<VoxelBit> tempVec(voxArrSize);
     this->pVoxArr = tempVec;
     this->voxDegree = voxDegree;
-    this->center = Position(0, 0, 0);
-    this->voxCenter = Position(center.x * voxDegree,
-                               center.y * voxDegree, 
-                               center.z * voxDegree);
-    setDevice(0);
+    this->refCorner = Position(0, 0, 0);
+    this->voxRefCorner = Position(refCorner.x * voxDegree,
+                               refCorner.y * voxDegree, 
+                               refCorner.z * voxDegree);
     initialize();
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode) {
+    setDevice(mode);
     simBoxDim = BoxDim(xLength, yLength, zLength);
     voxBoxDim = BoxDim(floor(xLength*voxDegree), 
               floor(yLength*voxDegree),
@@ -422,58 +420,64 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     std::vector<VoxelBit> tempVec(voxArrSize);
     this->pVoxArr = tempVec;
     this->voxDegree = voxDegree;
-    this->center = Position(0, 0, 0);
-    this->voxCenter = Position(center.x * voxDegree,
-                               center.y * voxDegree, 
-                               center.z * voxDegree);
-    setDevice(mode);
+    this->refCorner = Position(0, 0, 0);
+    this->voxRefCorner = Position(refCorner.x * voxDegree,
+                               refCorner.y * voxDegree, 
+                               refCorner.z * voxDegree);
     initialize();
 }
 
 SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize) {
-    simBoxDim = BoxDim(xLength, yLength, zLength);
-    voxBoxDim = BoxDim(floor(xLength*voxDegree), 
-              floor(yLength*voxDegree),
-              floor(zLength*voxDegree));
-    is2D = (zLength == 0) ? true : false;
-    int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
-    voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
+    this->is2D = (zLength == 0) ? true : false;
+    this->voxDegree = voxDegree;
+    setDevice(mode, rank, mpiWorldSize);
+    cout << (xLength * voxDegree) << ", " << (yLength * voxDegree) << endl;
+    if(is2D){
+        dcomp.divideSimBox2D(floor(xLength * voxDegree), 
+                             floor(yLength * voxDegree));
+    }
+    else{
+        cout << "Not implemented yet!" << endl;
+    }
+    xLength = (this->dcomp.localXMax) - (this->dcomp.localXMin);
+    yLength = (this->dcomp.localYMax) - (this->dcomp.localYMin);
+    zLength = (this->dcomp.localZMax) - (this->dcomp.localZMin);
+    this->voxBoxDim = BoxDim(xLength, 
+                             yLength,
+                             zLength);
+    voxBoxDim.print();
+    this->simBoxDim = BoxDim(xLength/voxDegree, yLength/voxDegree, zLength/voxDegree);
+    int voxArrSize = (xLength) * (yLength);
+    voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize*zLength);
     std::vector<VoxelBit> tempVec(voxArrSize);
     this->pVoxArr = tempVec;
-    this->voxDegree = voxDegree;
-    this->center = Position(0, 0, 0);
-    this->voxCenter = Position(center.x * voxDegree,
-                               center.y * voxDegree, 
-                               center.z * voxDegree);
-    setDevice(mode);
+    this->voxRefCorner = Position(this->dcomp.localXMin,
+                               this->dcomp.localYMin, 
+                               this->dcomp.localZMin);
+    this->refCorner = Position(voxRefCorner.x / voxDegree, 
+                               voxRefCorner.y / voxDegree,
+                               voxRefCorner.z / voxDegree);
+    cout << "Local ref corner is [" << voxRefCorner.x << "][" << voxRefCorner.y << "][" << voxRefCorner.z << "]" << endl;
     initialize();
 }
 
-void SimBox::setPVoxelArraySize(double xLength, double yLength, double zLength){
-    if(mode == 0){
-        int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
-        voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
-        std::vector<VoxelBit> tempVec(voxArrSize);
-        this->pVoxArr = tempVec;
-    }
-    else if(mode == 1){
-        int voxArrSize = (voxDegree*xLength) * (voxDegree*yLength);
-        voxArrSize = (zLength==0) ? (voxArrSize) : (voxArrSize* (voxDegree*zLength));
-        std::vector<VoxelBit> tempVec(voxArrSize);
-        this->pVoxArr = tempVec;
-    }
-}
 
 void SimBox::setVoxel(Position p, bool isParticle, int particleNum = -1) {
-    //adjustPosition(p);
+    adjustInputPosition(p);
     int i = indexFromPosition(p);
-    pVoxArr.at(i) = VoxelBit(i, isParticle, particleNum, voxBoxDim);
+    pVoxArr.at(i) = VoxelBit(i, isParticle, particleNum, voxBoxDim, this->voxRefCorner);
 }
 
-void SimBox::adjustPosition(Position &p){
-    p.x = ((this->simBoxDim.x)/2.0) + (this->voxCenter.x);
-    p.y = ((this->simBoxDim.y)/2.0) + (this->voxCenter.y);
-    p.z = ((this->simBoxDim.z)/2.0) + (this->voxCenter.z);
+void SimBox::adjustInputPosition(Position &p){
+    p.x = p.x - voxRefCorner.x;
+    p.y = p.y - voxRefCorner.y;
+    p.z = p.z - voxRefCorner.z;
+}
+
+void SimBox::adjustOutputPosition(Position &p){
+    p.x = p.x + voxRefCorner.x;
+    p.y = p.y + voxRefCorner.y;
+    p.z = p.z + voxRefCorner.z;
 }
 
 void SimBox::placeShape(Shape s, Quaternion q, Position p, int particleNum = -1) {
@@ -495,58 +499,68 @@ void SimBox::placeShape(Shape s, Quaternion q, Position p, int particleNum = -1)
         rp.x = ((sp.x*r00) + (sp.y*r01) + (sp.z*r02)) + p.x;
         rp.y = ((sp.x*r10) + (sp.y*r11) + (sp.z*r12)) + p.y;
         rp.z = ((sp.x*r20) + (sp.y*r21) + (sp.z*r22)) + p.z;
-        setVoxel(rp, true, particleNum);
+        if(insideVoxBox(rp)){
+            setVoxel(rp, true, particleNum);
+        }
     }
+}
+
+bool SimBox::insideVoxBox(Position p){
+    if(p.x >= this->refCorner.x && p.x <= (this->refCorner.x + voxBoxDim.x) &&
+       p.y >= this->refCorner.y && p.y <= (this->refCorner.y + voxBoxDim.y) &&
+       p.z >= this->refCorner.z && p.z <= (this->refCorner.z + voxBoxDim.z))
+    {
+        return true;
+    }
+    else{
+        return false;
+    }
+
 }
 
 void SimBox::printBox(){
-    if(mode == 0)
-    {
-        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-            Position p = positionFromIndex(i);
-            VoxelBit v  = pVoxArr.at(i);
-            cout << "[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.layer << endl;  
-        }
-    }
-    else{
-        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
+    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+        Position p = positionFromIndex(i);
+        VoxelBit v  = pVoxArr.at(i);
+        cout << "[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.layer << endl;  
     }
 }
 void SimBox::printBoundaries(){
-    if(mode == 0)
-    {
-        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-            Position p = positionFromIndex(i);
-            VoxelBit v  = pVoxArr.at(i);
-            cout << "Boundary[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.isBoundary << endl;  
-        }
+    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+        Position p = positionFromIndex(i);
+        VoxelBit v  = pVoxArr.at(i);
+        cout << "Boundary[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.isBoundary << endl;  
     }
-    else{
-        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
-    }
-
 }
 void SimBox::printCells(){
-    if(mode == 0)
-    {
-        for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-            Position p = positionFromIndex(i);
-            VoxelBit v  = pVoxArr.at(i);
-            if(v.isParticle) {
-                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << *v.origins.begin() << endl;  
-            }
-            else if(v.isBoundary) {
-                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "B" << endl;  
-            }
-            else{
-                cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "V" << endl;
-            }
+    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+        Position p = positionFromIndex(i);
+        VoxelBit v  = pVoxArr.at(i);
+        if(v.isParticle) {
+            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << *v.origins.begin() << endl;  
+        }
+        else if(v.isBoundary) {
+            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "B" << endl;  
+        }
+        else{
+            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "V" << endl;
         }
     }
-    else{
-        cout << "Cannot return full cell information for non serial methods. Memory limits make this unnecessary.";
+}
+void SimBox::printVoxRank(){
+    for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
+        Position p = positionFromIndex(i);
+        VoxelBit v  = pVoxArr.at(i);
+        cout << "VoxCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << dcomp.rank << endl;  
     }
 }
+
+void SimBox::setReferenceCorner(Position p){
+    this->refCorner.x = this->refCorner.x + this->voxDegree * p.x;
+    this->refCorner.y = this->refCorner.y + this->voxDegree * p.y;
+    this->refCorner.z = this->refCorner.z + this->voxDegree * p.z;
+}
+
 void SimBox::particleNum(int num) {
     this->partNum = num;
 }
@@ -556,19 +570,17 @@ int SimBox::particleNum() {
 
 void SimBox::setDevice(int mode){
     this->mode = mode;
-    this->rank = 0;
-    this->mpiWorldSize = 1;
+    this->dcomp = DomainDecomposition(0, 1);
 }
 void SimBox::setDevice(int mode, int rank, int mpiWorldSize){
     this->mode = mode;
-    this->rank = rank;
-    this->mpiWorldSize = mpiWorldSize;
+    this->dcomp = DomainDecomposition(rank, mpiWorldSize);
 }
 
 void SimBox::runVoro(){
     double start;
     double stop;
-    if(this->rank == 0){
+    if(this->dcomp.rank == 0){
         start = MPI_Wtime();
     }
     if(this->mode == 0)//Using plain Serial
@@ -586,7 +598,7 @@ void SimBox::runVoro(){
         initializeQueue();
         //runLayerByLayerGPU(); still in progress
     }
-    if(this->rank == 0){
+    if(this->dcomp.rank == 0){
         stop = MPI_Wtime();
         double duration = stop - start;
         cout << "Time taken to run voronoi: " << duration 
@@ -602,27 +614,21 @@ void SimBox::initialize() {
     int voxY = voxBoxDim.y;
     int zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
 
-    if(this->mode == 0)
+    if(this->mode == 0 || this->mode == 1)
     {
-        cout << "Initializing using serial cpu" << endl;
         for(x = 0; x < voxBoxDim.x; x++) {
             for(y = 0; y < voxBoxDim.y; y++) {
                 zMax = (voxBoxDim.z == 0) ? (1) : voxBoxDim.z;
                 //In the future if it's 2D vbd.z should be 1, not 0
                 for(z = 0; z < zMax; z++) {
                     i = ((x) + (y*voxBoxDim.x) + (z * voxBoxDim.x * voxBoxDim.y));
-                    pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim);
+                    pVoxArr.at(i) = VoxelBit(i, false, 0, voxBoxDim, this->voxRefCorner);
                 }
             }
         }
     }
-    else if(this->mode == 1){
-        cout << "Initializing using MPI on cpu" << endl;
-        //divideSimBox();
-    }
     else if(this->mode == 2)
     {
-        cout << "Using omp to initialize!" << endl;
         int id, np, a;
         #pragma omp parallel for num_threads(32)
         for(x = 0; x < voxX; x++) {
@@ -853,12 +859,15 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
 
     cout << "Rank " << this->rank << "\tMain Domain: " << this->mainDomainNumber << "\tlocal rank: " << this->localNumber << "\tlocal number total "<< numberInLocal << endl;
 
+    cout << "Rank " << this->rank << "XMod: " << xMod << endl;
+
     if(numberInLocal == 1){
         this->localXMin = xSpace * xMod;
         this->localXMax = (xMod == xLength - 1) ? (xLength): (localXMin + xSpace - 1);
+        cout << "Rank: " << this->rank << "\tXmin: " << this->localXMin << "\tXMax: " << this->localXMax << endl;
     }
     else{
-        //cout << "There are subspaces managed by rank " << this->rank << endl;
+        cout << "There are subspaces managed by rank " << this->rank << endl;
         this->localXMin = (xSpace * xMod) + (localNumber * localxMod);
         if(localNumber + 1 == numberInLocal){
             this->localXMax = (xMod == xLength - 1) ? (xLength): ((xSpace*xMod) + xSpace - 1);
@@ -875,27 +884,39 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
     this->localZMax = 0;
 }
 
-
+/*
 void DomainDecomposition::divideSimBox3D(int xLength, int yLength, int zLength){
     cout << "Not yet implemented!" << endl;
 }
 
-void DomainDecomposition::PlusXRank(){
-    if(this->localNumber + 1 == this->numberInLocal)
+int DomainDecomposition::PlusXRank(){
+    if(this->localNumber + 1 == this->numberInLocal){
+        return mainDomainNumber+1;
+    }
+    else{
+        return mainCount * (localNumber + 1) + mainDomainNumber
+    }
 }
-void DomainDecomposition::PlusY(){
+int DomainDecomposition::PlusY(){
 
 }
-void DomainDecomposition::PlusZ(){
+int DomainDecomposition::PlusZ(){
 
 }
-void DomainDecomposition::MinusX(){
+int DomainDecomposition::MinusX(){
+    if(this->localNumber == 1){
+        if{}
+        return (mainDomainNumber-1);
+    }
+    else{
+        return mainCount * (localNumber - 1) + mainDomainNumber
+    }
 
 }
-void DomainDecomposition::MinusY(){
+int DomainDecomposition::MinusY(){
 
 }
-void DomainDecomposition::MinusZ(){
+int DomainDecomposition::MinusZ(){
 
 }
 
@@ -906,3 +927,4 @@ void DomainDecomposition::sendData(&int data, int recvRank){
 void DomainDecomposition::ReceiveData(&int data, int sendRank){
 
 }
+*/

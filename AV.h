@@ -39,6 +39,46 @@ namespace AnisoVoro {
 
     };
 
+    class DomainDecomposition{
+        public:
+
+        int rank;
+        int P;
+        int mainDomainNumber;
+        int localNumber;
+        int length;
+        int mainCount; 
+        int numberInLocal;
+
+        int localXMin;
+        int localXMax;
+
+        int localYMin;
+        int localYMax;
+
+        int localZMin;
+        int localZMax;
+
+        DomainDecomposition();
+        DomainDecomposition(int rank, int P);
+
+        void divideSimBox2D(int xLength, int yLength);
+        /*
+        void divideSimBox3D(int xLength, int yLength, int zLength);
+        int PlusX();
+        int PlusY();
+        int PlusZ();
+        int MinusX();
+        int MinusY();
+        int MinusZ();
+
+        void sendData(&int data, int recvRank);
+        void ReceiveData(&int data, int sendRank);
+
+        */
+
+    };
+
     class Position {
         public:
             double x, y, z;
@@ -53,6 +93,7 @@ namespace AnisoVoro {
     class Shape {
         public:
             std::vector<Position> points;
+            int insphereRadius;
             //int voxDegree;
             Shape();
             Shape(std::vector<Position>& points);
@@ -124,8 +165,8 @@ namespace AnisoVoro {
             BoxDim voxBoxDim; //simUnitBoxDim * voxDegree
             bool is2D;
             int partNum;
-            Position center;
-            Position voxCenter;
+            Position refCorner;
+            Position voxRefCorner;
             int mode; 
 
             SimBox();    
@@ -134,6 +175,7 @@ namespace AnisoVoro {
             SimBox(double xLength, double yLength, double zLength, int voxDegree);
             SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode);
             SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize);
+            void setReferenceCorner(Position p);
             void setVoxel(Position p, bool isParticle, int particleNum);
             void placeShape(Shape s, Quaternion q, Position p, int particleNum);
             //void particleTypes(std::vector<int>& type_id, 
@@ -147,11 +189,13 @@ namespace AnisoVoro {
             void printBox();
             void printBoundaries();
             void printCells();
+            void printVoxRank();
             void runVoro();
     
         //~SimBox();
     
         private:
+            DomainDecomposition dcomp;
             int rank; //MPI Rank
             int mpiWorldSize;//MPI world size
             std::vector<int> mpiNeighbors;
@@ -164,9 +208,10 @@ namespace AnisoVoro {
 
             void setDevice(int mode);
             void setDevice(int mode, int rank, int mpiWorldSize);
-            void setPVoxelArraySize(double xLength, double yLength, double zLength);
+            bool insideVoxBox(Position p);
             void initialize();
-            void adjustPosition(Position &p);
+            void adjustInputPosition(Position &p);
+            void adjustOutputPosition(Position &p);
             int indexFromPosition(Position p); 
             Position positionFromIndex(int i);
             void initializeQueue();
@@ -177,54 +222,6 @@ namespace AnisoVoro {
             void updateNeighbors(int currentLayer, VoxelBit& v);
             void updateOrigins(int currentLayer);
             void originUpdater(int currentLayer, VoxelBit& v);
-    };
-
-    class DomainDecomposition{
-        public:
-
-        int rank;
-        int P;
-        int mainDomainNumber;
-        int localNumber;
-        int length;
-        int mainCount; 
-        int numberInLocal;
-
-        int localXMin;
-        int localXMax;
-
-        int localYMin;
-        int localYMax;
-
-        int localZMin;
-        int localZMax;
-
-        DomainDecomposition();
-        DomainDecomposition(int rank, int P);
-
-        void divideSimBox2D(int xLength, int yLength);
-        void divideSimBox3D(int xLength, int yLength, int zLength);
-
-        /*
-        void sendPlusX();
-        void sendPlusY();
-        void sendPlusZ();
-        void sendMinusX();
-        void sendMinusY();
-        void sendMinusZ();
-
-        void receivePlusX();
-        void receivePlusY();
-        void receivePlusZ();
-        void receiveMinusX();
-        void receiveMinusY();
-        void receiveMinusZ();
-
-        void sendData(&int data, int recvRank);
-        void ReceiveData(&int data, int sendRank);
-
-        */
-
     };
 
     
