@@ -259,17 +259,23 @@ VoxelIndex::VoxelIndex(int i, BoxDim vbd) {
     this->y = floor((i - (z*vbd.x*vbd.y))/vbd.x);
     this->x = i - (z*vbd.x*vbd.y) - (y*vbd.x);
 }
-VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position refCorner) {
+VoxelIndex::VoxelIndex(int i, BoxDim vbd, Position voxRefCorner) {
     this->i = i;
-
+ 
     double iz = floor(i/(vbd.x*vbd.y));
-    double iy = floor((i - (z*vbd.x*vbd.y))/vbd.x);
-    double ix = i - (z*vbd.x*vbd.y) - (y*vbd.x);
+    double iy = floor((i - (iz*vbd.x*vbd.y))/vbd.x);
+    double ix = i - (iz*vbd.x*vbd.y) - (iy*vbd.x);
 
-    this->x = ix + refCorner.x;
-    this->y = iy + refCorner.y;
-    this->z = iz + refCorner.z;
+    this->x = ix + voxRefCorner.x;
+    this->y = iy + voxRefCorner.y;
+    this->z = iz + voxRefCorner.z;
 
+    /*
+    if(ix == 0 && iy == 0 && iz == 0){
+        cout << "\t--------->p started as [" << ix << "][" << iy << "] and ended as [" << this->x << "][" << this->y << "]" << endl;
+    }
+    cout << "VoxCell[" << this->x << "][" << this->y << "][" << '0' << "] is 0" << endl;
+    */
 }
 
 VoxelBit::VoxelBit() {
@@ -377,6 +383,7 @@ SimBox::SimBox() {
     this->refCorner = Position(0, 0, 0);
 }
 
+/*
 SimBox::SimBox(double xLength, double yLength, double zLength, std::vector<VoxelBit>& pVoxArr, int voxDegree) {
     simBoxDim = BoxDim(xLength, yLength, zLength);
     voxBoxDim = BoxDim(floor(xLength*voxDegree), 
@@ -426,6 +433,7 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
                                refCorner.z * voxDegree);
     initialize();
 }
+*/
 
 SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize) {
     this->is2D = (zLength == 0) ? true : false;
@@ -435,13 +443,40 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     if(is2D){
         dcomp.divideSimBox2D(floor(xLength * voxDegree), 
                              floor(yLength * voxDegree));
+
+        for(int x = dcomp.localXMin; x <= dcomp.localXMax; x++)
+        {
+            for(int y = dcomp.localYMin; y <= dcomp.localYMax; y++)
+            {
+                //cout << "VoxCell[" << x << "][" << y << "][" << "0" << "]" << " is " << dcomp.rank << endl;  
+                int a = 5;
+            }
+        }
     }
     else{
         cout << "Not implemented yet!" << endl;
+        return(0);
     }
-    xLength = (this->dcomp.localXMax) - (this->dcomp.localXMin);
-    yLength = (this->dcomp.localYMax) - (this->dcomp.localYMin);
-    zLength = (this->dcomp.localZMax) - (this->dcomp.localZMin);
+
+    xLength = (dcomp.localXMax != xLength) ? 1 : 0;
+    yLength = (dcomp.localYMax != yLength) ? 1 : 0;
+    zLength = (dcomp.localZMax != zLength) ? 1 : 0;
+
+    xLength += (this->dcomp.localXMax) - (this->dcomp.localXMin);
+    yLength += (this->dcomp.localYMax) - (this->dcomp.localYMin);
+    zLength += (is2D) ? 0 : (this->dcomp.localZMax) - (this->dcomp.localZMin);
+
+    if (mpiWorldSize > 1){
+        // + 2 is for the ghost cells on either side
+        xLength += 2;
+        yLength += 2;
+        zLength += 2;
+    }
+
+    if(mpiWorldSize > 1){
+        adjustGhostCells(xLength, yLength, zLength);
+    }
+
     this->voxBoxDim = BoxDim(xLength, 
                              yLength,
                              zLength);
@@ -454,30 +489,49 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     this->voxRefCorner = Position(this->dcomp.localXMin,
                                this->dcomp.localYMin, 
                                this->dcomp.localZMin);
-    this->refCorner = Position(voxRefCorner.x / voxDegree, 
-                               voxRefCorner.y / voxDegree,
-                               voxRefCorner.z / voxDegree);
-    cout << "Local ref corner is [" << voxRefCorner.x << "][" << voxRefCorner.y << "][" << voxRefCorner.z << "]" << endl;
+    this->refCorner = Position(voxRefCorner.x / (voxDegree + 0.0), 
+                               voxRefCorner.y / (voxDegree + 0.0),
+                               voxRefCorner.z / (voxDegree + 0.0));
+
+    if(mpiWorldSize > 1){
+        adjustVoxRefCorner();
+    }
+
+    cout << "Local vox ref corner is [" << voxRefCorner.x << "][" << voxRefCorner.y << "][" << voxRefCorner.z << "]" << endl;
+
     initialize();
 }
 
 
 void SimBox::setVoxel(Position p, bool isParticle, int particleNum = -1) {
+    Position a = p;
     adjustInputPosition(p);
     int i = indexFromPosition(p);
     pVoxArr.at(i) = VoxelBit(i, isParticle, particleNum, voxBoxDim, this->voxRefCorner);
 }
 
+void SimBox::adjustGhostCells(&xLength, &yLength, &zLength){
+    xLength += 2;
+    yLength += 2;
+    if(this->is2D){zLength += 2;}
+}
+
+void SimBox::adjustVoxRefCorner(){
+    this->voxRefCorner.x -= 1;
+    this->voxRefCorner.y -= 1;
+    if(this->is2D){this->voxRefCorner.z -= 1;}
+}
+
 void SimBox::adjustInputPosition(Position &p){
-    p.x = p.x - voxRefCorner.x;
-    p.y = p.y - voxRefCorner.y;
-    p.z = p.z - voxRefCorner.z;
+    p.x -= voxRefCorner.x;
+    p.y -= voxRefCorner.y;
+    p.z -= voxRefCorner.z;
 }
 
 void SimBox::adjustOutputPosition(Position &p){
-    p.x = p.x + voxRefCorner.x;
-    p.y = p.y + voxRefCorner.y;
-    p.z = p.z + voxRefCorner.z;
+    p.x += voxRefCorner.x;
+    p.y += voxRefCorner.y;
+    p.z += voxRefCorner.z;
 }
 
 void SimBox::placeShape(Shape s, Quaternion q, Position p, int particleNum = -1) {
@@ -520,38 +574,40 @@ bool SimBox::insideVoxBox(Position p){
 
 void SimBox::printBox(){
     for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
         VoxelBit v  = pVoxArr.at(i);
-        cout << "[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.layer << endl;  
+        VoxelIndex a = v.index;
+        cout << "[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << v.layer << endl;  
     }
 }
 void SimBox::printBoundaries(){
     for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
         VoxelBit v  = pVoxArr.at(i);
-        cout << "Boundary[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << v.isBoundary << endl;  
+        VoxelIndex a = v.index;
+        cout << "Boundary[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << v.isBoundary << endl;  
     }
 }
 void SimBox::printCells(){
     for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
         VoxelBit v  = pVoxArr.at(i);
+        VoxelIndex a = v.index;
+
         if(v.isParticle) {
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << *v.origins.begin() << endl;  
+            cout << "ParticleCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << *v.origins.begin() << endl;  
         }
         else if(v.isBoundary) {
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "B" << endl;  
+            cout << "ParticleCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << "B" << endl;  
         }
         else{
-            cout << "ParticleCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << "V" << endl;
+            cout << "ParticleCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << "V" << endl;
         }
     }
 }
 void SimBox::printVoxRank(){
     for (int i = 0; i < static_cast<int>(pVoxArr.size()); i++) {
-        Position p = positionFromIndex(i);
+        //Position p = positionFromIndex(i);
         VoxelBit v  = pVoxArr.at(i);
-        cout << "VoxCell[" << p.x << "][" << p.y << "][" << p.z << "]" << " is " << dcomp.rank << endl;  
+        VoxelIndex a = v.index;
+        cout << "VoxCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << dcomp.rank << endl;  
     }
 }
 
@@ -654,6 +710,7 @@ Position SimBox::positionFromIndex(int i) {
     double y = floor((i - (z*voxBoxDim.x*voxBoxDim.y))/voxBoxDim.x);
     double x = i - (z*voxBoxDim.x*voxBoxDim.y) - (y*voxBoxDim.x);
     Position p(x, y, z);
+    adjustOutputPosition(p);
     return (p);
 }
 
@@ -859,7 +916,7 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
 
     cout << "Rank " << this->rank << "\tMain Domain: " << this->mainDomainNumber << "\tlocal rank: " << this->localNumber << "\tlocal number total "<< numberInLocal << endl;
 
-    cout << "Rank " << this->rank << "XMod: " << xMod << endl;
+    cout << "Rank " << this->rank << "\tXMod: " << xMod << "\txSpace" << xSpace << "\txLength" << xLength << endl;
 
     if(numberInLocal == 1){
         this->localXMin = xSpace * xMod;
@@ -882,6 +939,38 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
 
     this->localZMin = 0;
     this->localZMax = 0;
+
+    mainNeighbors2D();
+}
+
+
+void DomainDecomposition::mainNeighbors2D(){
+    int dim = std::pow(mainCount, 2);
+    int z = floor(mainDomainNumber/(mainCount));
+    int y = floor((mainDomainNumber- (z*mainCount))/dim);
+    int x = mainDomainNumber - (z*mainCount) - (y*dim);
+
+    int minusXtemp, plusXtemp;
+    int minusYtemp, plusYtemp;
+    int minusZtemp, plusZtemp;
+ 
+    plusXtemp = (x != dim - 1) ? (1) : (-dim + 1);
+    minusXtemp = (x != 0) ? (-1) : (dim - 1);
+    minusYtemp = (y != dim - 1) ? (dim) : (-dim * (dim - 1));
+    plusYtemp = (y != 0) ? (-dim) : (dim * (dim - 1));
+    minusZtemp = -1;
+    plusZtemp = -1;
+
+    this->mainMinusX = mainDomainNumber + plusXtemp;
+    this->mainPlusX = mainDomainNumber + minusXtemp;
+    this->mainMinusY = mainDomainNumber + plusYtemp;
+    this->mainPlusY = mainDomainNumber + minusYtemp;
+
+    this->mainPlusYPlusX = mainDomainNumber + plusYtemp + plusXtemp;
+    this->mainPlusYMinusX = mainDomainNumber + plusYtemp + minusXtemp;
+    this->mainMinusYPlusX = mainDomainNumber + minusYtemp + plusXtemp;
+    this->mainMinusYMinusX = mainDomainNumber + minusYtemp + minusXtemp;
+
 }
 
 /*
@@ -889,36 +978,7 @@ void DomainDecomposition::divideSimBox3D(int xLength, int yLength, int zLength){
     cout << "Not yet implemented!" << endl;
 }
 
-int DomainDecomposition::PlusXRank(){
-    if(this->localNumber + 1 == this->numberInLocal){
-        return mainDomainNumber+1;
-    }
-    else{
-        return mainCount * (localNumber + 1) + mainDomainNumber
-    }
-}
-int DomainDecomposition::PlusY(){
 
-}
-int DomainDecomposition::PlusZ(){
-
-}
-int DomainDecomposition::MinusX(){
-    if(this->localNumber == 1){
-        if{}
-        return (mainDomainNumber-1);
-    }
-    else{
-        return mainCount * (localNumber - 1) + mainDomainNumber
-    }
-
-}
-int DomainDecomposition::MinusY(){
-
-}
-int DomainDecomposition::MinusZ(){
-
-}
 
 void DomainDecomposition::sendData(&int data, int recvRank){
 

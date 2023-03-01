@@ -23,14 +23,12 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &P);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    cout << "Hello from rank " << rank << endl;
-
     double xLength = 25;
     double yLength = 25;
     double zLength = 0;
-    if(argc < 4){
+    if(argc < 3){
         std::cout << "ERROR CODE 1:" << std::endl;
-        std::cout << "\tPlease enter more arguments in ./run <printBool> <voxDegree> <bool useGPU>" << std::endl;
+        std::cout << "\tPlease enter more arguments in ./run <printBool> <voxDegree>" << std::endl;
         exit(1);
     }
 
@@ -48,18 +46,7 @@ int main(int argc, char** argv) {
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
     
     SimBox sim;
-    if(atoi(argv[3]) == 0){
-        cout << "Setting to use serial" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree);
-    }
-    else if(atoi(argv[3]) == 1){
-        cout << "Setting to use MPI" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree, 1, rank, P);
-    }
-    else{
-        cout << "Setting to use GPU" << endl;
-        sim = SimBox(xLength, yLength, zLength, voxDegree, 2);
-    }
+    sim = SimBox(xLength, yLength, zLength, voxDegree, 1, rank, P);
 
     int shapeSize = 0;
     for (double x = 0; x < 1; x = x + (1/voxDegree)){
@@ -108,21 +95,20 @@ int main(int argc, char** argv) {
              << " microseconds" << endl;
     }
     //start = high_resolution_clock::now();
-    sim.runVoro();
+    //sim.runVoro();
     //stop = high_resolution_clock::now();
     //duration = duration_cast<microseconds>(stop - start);
     //cout << "Time taken to run voronoi: " << duration.count() 
     //     << " microseconds" << endl;
     int print = atoi(argv[1]);
-    if(rank == 0){
-        if(print == 1){
-            sim.printBox();
-            sim.printBoundaries();
-            sim.printCells();
-            sim.printVoxRank();
-        }
+    if(print == 1){
+        sim.printBox();
+        sim.printBoundaries();
+        sim.printCells();
+        sim.printVoxRank();
     }
 
+    //sim.printVoxRank();
     MPI_Finalize();
     return 0;
 }

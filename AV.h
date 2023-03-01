@@ -42,40 +42,60 @@ namespace AnisoVoro {
     class DomainDecomposition{
         public:
 
-        int rank;
-        int P;
-        int mainDomainNumber;
-        int localNumber;
-        int length;
-        int mainCount; 
-        int numberInLocal;
+            int rank {0};
+            int P {1};
+            int mainDomainNumber {0};
+            int localNumber {0};
+            int length {1};
+            int mainCount {1}; 
+            int numberInLocal {1};
+    
+            int localXMin, localXMax {1};
+            int localYMin, localYMax {1};
+            int localZMin, localZMax {1};
+    
+            //Neighbors for 2D
+            //Need to figure out 3D, pretty simple though
+            int mainPlusX, mainMinusX {-1};
+            int mainPlusY, mainMinusY {-1};
+            int mainPlusYPlusX, mainPlusYMinusX {-1};
+            int mainMinusYPlusX, mainMinusYMinusX {-1};
 
-        int localXMin;
-        int localXMax;
+            //Additional Neighbors for 3D
+            int mainPlusZ, mainMinusZ {-1};
 
-        int localYMin;
-        int localYMax;
+            int mainPlusZPlusX, mainPlusZMinusX {-1};
+            int mainPlusZPlusY, mainPlusZMinusY {-1};
+            int mainPlusZPlusYPlusX, mainPlusZPlusYMinusX {-1};
+            int mainPlusZMinusYPlusX, mainPlusZMinusYMinusX {-1};
 
-        int localZMin;
-        int localZMax;
+            int mainMinusZPlusX, mainMinusZMinusX {-1};
+            int mainMinusZPlusY, mainMinusZMinusY {-1};
+            int mainMinusZPlusYPlusX, mainMinusZPlusYMinusX {-1};
+            int mainMinusZMinusYPlusX, mainMinusZMinusYMinusX {-1};
 
-        DomainDecomposition();
-        DomainDecomposition(int rank, int P);
 
-        void divideSimBox2D(int xLength, int yLength);
-        /*
-        void divideSimBox3D(int xLength, int yLength, int zLength);
-        int PlusX();
-        int PlusY();
-        int PlusZ();
-        int MinusX();
-        int MinusY();
-        int MinusZ();
 
-        void sendData(&int data, int recvRank);
-        void ReceiveData(&int data, int sendRank);
+            DomainDecomposition();
+            DomainDecomposition(int rank, int P);
+    
+            void divideSimBox2D(int xLength, int yLength);
+            /*
+            void divideSimBox3D(int xLength, int yLength, int zLength);
+            int PlusX();
+            int PlusY();
+            int PlusZ();
+            int MinusX();
+            int MinusY();
+            int MinusZ();
+    
+            void sendData(&int data, int recvRank);
+            void ReceiveData(&int data, int sendRank);
+    
+            */
 
-        */
+        private:
+            void mainNeighbors2D();
 
     };
 
@@ -170,10 +190,10 @@ namespace AnisoVoro {
             int mode; 
 
             SimBox();    
-            SimBox(double xLength, double yLength, double zLength, 
-                   std::vector<VoxelBit>& pVoxArr, int voxDegree);
-            SimBox(double xLength, double yLength, double zLength, int voxDegree);
-            SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode);
+            //SimBox(double xLength, double yLength, double zLength, 
+            //       std::vector<VoxelBit>& pVoxArr, int voxDegree);
+            //SimBox(double xLength, double yLength, double zLength, int voxDegree);
+            //SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode);
             SimBox(double xLength, double yLength, double zLength, int voxDegree, int mode, int rank, int mpiWorldSize);
             void setReferenceCorner(Position p);
             void setVoxel(Position p, bool isParticle, int particleNum);
@@ -208,6 +228,8 @@ namespace AnisoVoro {
 
             void setDevice(int mode);
             void setDevice(int mode, int rank, int mpiWorldSize);
+            void adjustGhostCells(&xLength, &yLength, &zLength);
+            void adjustVoxRefCorner();
             bool insideVoxBox(Position p);
             void initialize();
             void adjustInputPosition(Position &p);
