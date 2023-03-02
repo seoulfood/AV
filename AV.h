@@ -155,10 +155,10 @@ namespace AnisoVoro {
     
     class VoxelBit {
         public:
-            int layer;
+            int layer {-1};
             VoxelIndex index;
             std::set<int> origins;
-            bool isParticle, isBoundary;
+            bool isParticle, isBoundary, isGhost {false};
             //~VoxelBit();
             VoxelBit();
             VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd); 
@@ -181,11 +181,11 @@ namespace AnisoVoro {
             std::vector<Shape> shapeArr;
             std::vector<Position> positions;
             int voxDegree; //number of voxels per simulation box unit
-            BoxDim simBoxDim;
+            BoxDim totalBoxDim;
             BoxDim voxBoxDim; //simUnitBoxDim * voxDegree
             bool is2D;
             int partNum;
-            Position refCorner;
+            Position mainRefCorner;
             Position voxRefCorner;
             int mode; 
 
@@ -228,7 +228,8 @@ namespace AnisoVoro {
 
             void setDevice(int mode);
             void setDevice(int mode, int rank, int mpiWorldSize);
-            void adjustGhostCells(&xLength, &yLength, &zLength);
+            void adjustForGhostCells(double *xLength, double *yLength, double *zLength);
+            void adjustGhostCells();
             void adjustVoxRefCorner();
             bool insideVoxBox(Position p);
             void initialize();
