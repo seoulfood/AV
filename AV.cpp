@@ -532,6 +532,19 @@ void SimBox::adjustGhostCells(){
             ((pVoxArr.at(i)).index).y = mainRefCorner.y;
         }
     }
+    this->ghostsToSend[0].reserve(voxBoxDim.x);
+    this->ghostsToSend[1].reserve(voxBoxDim.x);
+    this->ghostsToSend[2].reserve(voxBoxDim.y);
+    this->ghostsToSend[3].reserve(voxBoxDim.y);
+    this->ghostsToSend[4].reserve(voxBoxDim.z);
+    this->ghostsToSend[5].reserve(voxBoxDim.z);
+
+    this->ghostsToRecv[0].reserve(voxBoxDim.x);
+    this->ghostsToRecv[1].reserve(voxBoxDim.x);
+    this->ghostsToRecv[2].reserve(voxBoxDim.y);
+    this->ghostsToRecv[3].reserve(voxBoxDim.y);
+    this->ghostsToRecv[4].reserve(voxBoxDim.z);
+    this->ghostsToRecv[5].reserve(voxBoxDim.z);
 }
 
 void SimBox::adjustForGhostCells(double *xLength, double *yLength, double *zLength){
@@ -792,7 +805,7 @@ void SimBox::runVoro(){
     else if(this->dcomp.P > 1)//Using Dynamic MPI
     {
         initializeQueue();
-        runLayerByLayerMPI();
+        //runLayerByLayerMPI();
     }
 
     if(this->dcomp.rank == 0){
@@ -868,7 +881,10 @@ void SimBox::initializeQueue() {
         }
     }
     updateOrigins(1);
-    updateGhosts();
+
+    if(this->dcomp.P > 1){
+        updateGhosts(1);
+    }
 }
 
 void SimBox::runLayerByLayerGPU() {
@@ -905,7 +921,7 @@ void SimBox::runLayerByLayerMPI() {
         if(v.layer != currentLayer) {
             currentLayer += 1;
             updateOrigins(currentLayer);
-            updateGhosts();
+            updateGhosts(currentLayer);
         }
         updateNeighbors(currentLayer, v);
     }
@@ -1014,12 +1030,154 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
     }
 }
 
-void SimBox::updateGhosts(){
+void SimBox::updateGhosts(int layer){
 
     //In here we need to send, receive all ghosts
+
+    //sendRecvGhosts2D(layer);
+    int i = 1;
+
     //And then we need to update the origins if needed
     //Then add the ghosts into the layerRun for the next step with the same rules as the regular cells
 
+}
+
+void SimBox::integrateGhosts(std::vector<int> *ghosts){
+    cout << "Suffer!!!" << endl;
+}
+
+//HORRENDOUS LONG SUBROUTINE
+void SimBox::sendRecvGhosts2D(int layer){
+    int pVoxSize = static_cast<int>(pVoxArr.size());
+    VoxelBit v;
+    int m;
+
+    int northSendSize;
+    int southSendSize;
+    int eastSendSize;
+    int westSendSize;
+
+    int northRecvSize;
+    int southRecvSize;
+    int eastRecvSize;
+    int westRecvSize;
+
+    //North vector creation
+    for(int i = pVoxSize - ((voxBoxDim.x*2)-2); i < pVoxSize - (voxBoxDim.x+1); i++){
+        v = pVoxArr.at(i);
+        if(v.layer = layer){
+            ghostsToSend[0].push_back(v.index.x);
+            ghostsToSend[0].push_back(v.index.y);
+            ghostsToSend[0].push_back(v.index.z);
+
+            if(v.isParticle || v.isBoundary){
+                m = v.isParticle ? 1 : 2;
+                ghostsToSend[0].push_back(m);
+            }
+            else{
+                ghostsToSend[0].push_back(0);
+            }
+
+            for(auto& ori : v.origins){
+                ghostsToSend[0].push_back(ori);
+            }
+        }
+        ghostsToSend[0].push_back(-1);
+    }
+    northSendSize = static_cast<int>(ghostsToSend[0].size());
+    //South vector creation 
+    for(int i = voxBoxDim.x + 1; i < (voxBoxDim.x*2) - 2; i++){
+        v = pVoxArr.at(i);
+        if(v.layer = layer){
+            ghostsToSend[1].push_back(v.index.x);
+            ghostsToSend[1].push_back(v.index.y);
+            ghostsToSend[1].push_back(v.index.z);
+
+            if(v.isParticle || v.isBoundary){
+                m = v.isParticle ? 1 : 2;
+                ghostsToSend[1].push_back(m);
+            }
+            else{
+                ghostsToSend[1].push_back(0);
+            }
+
+            for(auto& ori : v.origins){
+                ghostsToSend[1].push_back(ori);
+            }
+        }
+        ghostsToSend[1].push_back(-1);
+    }
+    southSendSize = static_cast<int>(ghostsToSend[1].size()); 
+    //North/South sending along main bits
+    MPI_Send(&northSendSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
+    MPI_Recv(&southRecvSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(ghostsToSend[0].data(), northSendSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
+    MPI_Recv(&ghostsToRecv[1], southRecvSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    MPI_Send(&southSendSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
+    MPI_Recv(&northRecvSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(ghostsToSend[1].data(), southSendSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
+    MPI_Recv(&ghostsToRecv[0], northRecvSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    //integrateGhosts(&ghostsToRecv[0]);
+    //integrateGhosts(&ghostsToRecv[1]);
+
+    //East vector creation
+    for(int i = voxBoxDim.x - 2; i < pVoxSize; i += voxBoxDim.x){
+        v = pVoxArr.at(i);
+        if(v.layer = layer){
+            ghostsToSend[2].push_back(v.index.x);
+            ghostsToSend[2].push_back(v.index.y);
+            ghostsToSend[2].push_back(v.index.z);
+
+            if(v.isParticle || v.isBoundary){
+                m = v.isParticle ? 1 : 2;
+                ghostsToSend[2].push_back(m);
+            }
+            else{
+                ghostsToSend[2].push_back(0);
+            }
+
+            for(auto& ori : v.origins){
+                ghostsToSend[2].push_back(ori);
+            }
+        }
+        ghostsToSend[2].push_back(-1);
+    }
+    eastSendSize = static_cast<int>(ghostsToSend[2].size());
+    //West vector creation
+    for(int i = 1; i < pVoxSize; i += voxBoxDim.x){
+        v = pVoxArr.at(i);
+        if(v.layer = layer){
+            ghostsToSend[3].push_back(v.index.x);
+            ghostsToSend[3].push_back(v.index.y);
+            ghostsToSend[3].push_back(v.index.z);
+
+            if(v.isParticle || v.isBoundary){
+                m = v.isParticle ? 1 : 2;
+                ghostsToSend[3].push_back(m);
+            }
+            else{
+                ghostsToSend[3].push_back(0);
+            }
+
+            for(auto& ori : v.origins){
+                ghostsToSend[3].push_back(ori);
+            }
+        }
+        ghostsToSend[3].push_back(-1);
+    }
+    westSendSize = static_cast<int>(ghostsToSend[3].size());
+    //NOTE: in future make it so before this we split along subsections and also send only to the local x neighbors so it works with non perfect squares
+    MPI_Send(&eastSendSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
+    MPI_Recv(&westRecvSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(ghostsToSend[2].data(), eastSendSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
+    MPI_Recv(&ghostsToRecv[3], westRecvSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    MPI_Send(&westSendSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
+    MPI_Recv(&eastRecvSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(ghostsToSend[3].data(), westSendSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
+    MPI_Recv(&ghostsToRecv[2], eastRecvSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 }
 
 

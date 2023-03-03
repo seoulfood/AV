@@ -226,10 +226,20 @@ namespace AnisoVoro {
             std::queue<int> originRun;
             std::queue<int> boundaryIndices;
 
+            //There's -1's between each particle 
+            //neither, particle, boundary == 0, 1, 2
+            std::vector<int> ghostsToSend[6];
+            std::vector<int> ghostsToRecv[6];
+
             void setDevice(int mode);
             void setDevice(int mode, int rank, int mpiWorldSize);
             void adjustForGhostCells(double *xLength, double *yLength, double *zLength);
             void adjustGhostCells();
+
+            void updateGhosts(int layer);
+            void sendRecvGhosts2D(int layer);
+            void integrateGhosts(std::vector<int> *ghosts);
+
             void adjustVoxRefCorner();
             bool insideVoxBox(Position p);
             void initialize();
