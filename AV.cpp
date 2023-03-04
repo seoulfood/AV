@@ -445,7 +445,6 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
     this->is2D = (zLength == 0) ? true : false;
     this->voxDegree = voxDegree;
     setDevice(mode, rank, mpiWorldSize);
-    cout << (xLength) << ", " << (yLength) << endl;
     if(is2D){
         dcomp.divideSimBox2D(xLength, 
                              yLength);
@@ -490,7 +489,7 @@ SimBox::SimBox(double xLength, double yLength, double zLength, int voxDegree, in
         adjustVoxRefCorner();
     }
 
-    cout << "Local vox ref corner is [" << voxRefCorner.x << "][" << voxRefCorner.y << "][" << voxRefCorner.z << "]" << endl;
+    //cout << "Local vox ref corner is [" << voxRefCorner.x << "][" << voxRefCorner.y << "][" << voxRefCorner.z << "]" << endl;
 
     initialize();
 }
@@ -764,7 +763,12 @@ void SimBox::printVoxRank(){
                 //cout << "VoxCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << "G" << endl;  
                 continue;
             }
-            cout << "VoxCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << dcomp.rank << endl;  
+            if(!v.isParticle){
+                cout << "VoxCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is " << dcomp.rank << endl;  
+            }
+            else{
+                cout << "VoxCell[" << a.x << "][" << a.y << "][" << a.z << "]" << " is P" << endl;  
+            }
         }
     }
 }
@@ -884,6 +888,7 @@ void SimBox::initializeQueue() {
 
     if(this->dcomp.P > 1){
         updateGhosts(1);
+        int a = 1;
     }
 }
 
@@ -1034,8 +1039,8 @@ void SimBox::updateGhosts(int layer){
 
     //In here we need to send, receive all ghosts
 
-    //sendRecvGhosts2D(layer);
-    int i = 1;
+    sendRecvGhosts2D(layer);
+    //int i = 1;
 
     //And then we need to update the origins if needed
     //Then add the ghosts into the layerRun for the next step with the same rules as the regular cells
@@ -1051,6 +1056,10 @@ void SimBox::sendRecvGhosts2D(int layer){
     int pVoxSize = static_cast<int>(pVoxArr.size());
     VoxelBit v;
     int m;
+    int n;
+    int s;
+    int e; 
+    int w; 
 
     int northSendSize;
     int southSendSize;
@@ -1063,9 +1072,10 @@ void SimBox::sendRecvGhosts2D(int layer){
     int westRecvSize;
 
     //North vector creation
+    n = 0;
     for(int i = pVoxSize - ((voxBoxDim.x*2)-2); i < pVoxSize - (voxBoxDim.x+1); i++){
         v = pVoxArr.at(i);
-        if(v.layer = layer){
+        if(v.layer == layer){
             ghostsToSend[0].push_back(v.index.x);
             ghostsToSend[0].push_back(v.index.y);
             ghostsToSend[0].push_back(v.index.z);
@@ -1081,14 +1091,16 @@ void SimBox::sendRecvGhosts2D(int layer){
             for(auto& ori : v.origins){
                 ghostsToSend[0].push_back(ori);
             }
+            ghostsToSend[0].push_back(-1);
+            n++;
         }
-        ghostsToSend[0].push_back(-1);
     }
     northSendSize = static_cast<int>(ghostsToSend[0].size());
     //South vector creation 
+    s = 0;
     for(int i = voxBoxDim.x + 1; i < (voxBoxDim.x*2) - 2; i++){
         v = pVoxArr.at(i);
-        if(v.layer = layer){
+        if(v.layer == layer){
             ghostsToSend[1].push_back(v.index.x);
             ghostsToSend[1].push_back(v.index.y);
             ghostsToSend[1].push_back(v.index.z);
@@ -1104,28 +1116,51 @@ void SimBox::sendRecvGhosts2D(int layer){
             for(auto& ori : v.origins){
                 ghostsToSend[1].push_back(ori);
             }
+            ghostsToSend[1].push_back(-1);
+            s++;
         }
-        ghostsToSend[1].push_back(-1);
     }
     southSendSize = static_cast<int>(ghostsToSend[1].size()); 
     //North/South sending along main bits
-    MPI_Send(&northSendSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
-    MPI_Recv(&southRecvSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Send(ghostsToSend[0].data(), northSendSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
-    MPI_Recv(&ghostsToRecv[1], southRecvSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    if(this->dcomp.mainPlusY != this->dcomp.mainDomainNumber){
+        cout << "We want to send " << n << " voxels to the north from rank " << this->dcomp.rank << " to rank " << this->dcomp.mainPlusY << endl;
+        cout << "We want to send " << s << " voxels to the north from rank " << this->dcomp.rank << " to rank " << this->dcomp.mainMinusY << endl;
+        MPI_Send(&northSendSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
+        MPI_Recv(&southRecvSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if(northSendSize != 0){
+            MPI_Send(&(ghostsToSend[0])[0], northSendSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
+        }
+        if(southRecvSize != 0){
+            ghostsToRecv[1].reserve(southRecvSize);
+            MPI_Recv(&(ghostsToRecv[1])[0], southRecvSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
 
-    MPI_Send(&southSendSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
-    MPI_Recv(&northRecvSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Send(ghostsToSend[1].data(), southSendSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
-    MPI_Recv(&ghostsToRecv[0], northRecvSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if(northSendSize != 0){
+            MPI_Send(&(ghostsToSend[0])[0], northSendSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD);
+        }
+        if(southRecvSize != 0){
+            ghostsToRecv[1].reserve(southRecvSize);
+            MPI_Recv(&(ghostsToRecv[1])[0], southRecvSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
 
+        MPI_Send(&southSendSize, 1, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
+        MPI_Recv(&northRecvSize, 1, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if(southSendSize != 0){
+            MPI_Send(&(ghostsToSend[1])[0], southSendSize, MPI_INT, this->dcomp.mainMinusY, 0, MPI_COMM_WORLD);
+        }
+        if(northRecvSize != 0){
+            ghostsToRecv[0].reserve(northRecvSize);
+            MPI_Recv(&(ghostsToRecv[0])[0], northRecvSize, MPI_INT, this->dcomp.mainPlusY, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
     //integrateGhosts(&ghostsToRecv[0]);
     //integrateGhosts(&ghostsToRecv[1]);
 
     //East vector creation
+    e = 0;
     for(int i = voxBoxDim.x - 2; i < pVoxSize; i += voxBoxDim.x){
         v = pVoxArr.at(i);
-        if(v.layer = layer){
+        if(v.layer == layer){
             ghostsToSend[2].push_back(v.index.x);
             ghostsToSend[2].push_back(v.index.y);
             ghostsToSend[2].push_back(v.index.z);
@@ -1141,14 +1176,16 @@ void SimBox::sendRecvGhosts2D(int layer){
             for(auto& ori : v.origins){
                 ghostsToSend[2].push_back(ori);
             }
+            ghostsToSend[2].push_back(-1);
+            e++;
         }
-        ghostsToSend[2].push_back(-1);
     }
     eastSendSize = static_cast<int>(ghostsToSend[2].size());
     //West vector creation
+    w = 0;
     for(int i = 1; i < pVoxSize; i += voxBoxDim.x){
         v = pVoxArr.at(i);
-        if(v.layer = layer){
+        if(v.layer == layer){
             ghostsToSend[3].push_back(v.index.x);
             ghostsToSend[3].push_back(v.index.y);
             ghostsToSend[3].push_back(v.index.z);
@@ -1164,20 +1201,35 @@ void SimBox::sendRecvGhosts2D(int layer){
             for(auto& ori : v.origins){
                 ghostsToSend[3].push_back(ori);
             }
+            ghostsToSend[3].push_back(-1);
+            w++;
         }
-        ghostsToSend[3].push_back(-1);
     }
     westSendSize = static_cast<int>(ghostsToSend[3].size());
     //NOTE: in future make it so before this we split along subsections and also send only to the local x neighbors so it works with non perfect squares
-    MPI_Send(&eastSendSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
-    MPI_Recv(&westRecvSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Send(ghostsToSend[2].data(), eastSendSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
-    MPI_Recv(&ghostsToRecv[3], westRecvSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    if(this->dcomp.mainPlusX != this->dcomp.mainDomainNumber){
+        cout << "We want to send " << e << " voxels to the east from rank " << this->dcomp.rank << " to rank " << this->dcomp.mainPlusX << endl;
+        cout << "We want to send " << w << " voxels to the west from rank " << this->dcomp.rank << " to rank " << this->dcomp.mainMinusX << endl;
+        MPI_Send(&eastSendSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
+        MPI_Recv(&westRecvSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if(eastSendSize != 0){
+            MPI_Send(&(ghostsToSend[2])[0], eastSendSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD);
+        }
+        if(westRecvSize != 0){
+            ghostsToRecv[3].reserve(westRecvSize);
+            MPI_Recv(&(ghostsToRecv[3])[0], westRecvSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
 
-    MPI_Send(&westSendSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
-    MPI_Recv(&eastRecvSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Send(ghostsToSend[3].data(), westSendSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
-    MPI_Recv(&ghostsToRecv[2], eastRecvSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Send(&westSendSize, 1, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
+        MPI_Recv(&eastRecvSize, 1, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if(westSendSize != 0){
+            MPI_Send(&(ghostsToSend[3])[0], westSendSize, MPI_INT, this->dcomp.mainMinusX, 0, MPI_COMM_WORLD);
+        }
+        if(eastRecvSize != 0){
+            ghostsToRecv[2].reserve(eastRecvSize);
+            MPI_Recv(&(ghostsToRecv[2])[0], eastRecvSize, MPI_INT, this->dcomp.mainPlusX, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
 }
 
 
@@ -1207,19 +1259,11 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
     this->numberInLocal = (mainDomainNumber >= P % mainCount) ? (P/mainCount) : ((P/mainCount) + 1);
     int localxMod = xSpace / numberInLocal;
 
-    //cout << "xSpace is " << xSpace << "\tlocalxMod is " << localxMod << endl;
-
-    //cout << "Rank " << this->rank << "\tMain Domain: " << this->mainDomainNumber << "\tlocal rank: " << this->localNumber << "\tlocal number total "<< numberInLocal << endl;
-
-    //cout << "Rank " << this->rank << "\tXMod: " << xMod << "\txSpace" << xSpace << "\txLength" << xLength << endl;
-
     if(numberInLocal == 1){
         this->localXMin = xSpace * xMod;
         this->localXMax = (xMod == xLength - 1) ? (xLength): (localXMin + xSpace - 1);
-        //cout << "Rank: " << this->rank << "\tXmin: " << this->localXMin << "\tXMax: " << this->localXMax << endl;
     }
     else{
-        //cout << "There are subspaces managed by rank " << this->rank << endl;
         this->localXMin = (xSpace * xMod) + (localNumber * localxMod);
         if(localNumber + 1 == numberInLocal){
             this->localXMax = (xMod == xLength - 1) ? (xLength): ((xSpace*xMod) + xSpace - 1);
@@ -1240,7 +1284,7 @@ void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
 
 
 void DomainDecomposition::mainNeighbors2D(){
-    int dim = std::pow(mainCount, 2);
+    int dim = floor(sqrt(mainCount));
     int z = floor(mainDomainNumber/(mainCount));
     int y = floor((mainDomainNumber- (z*mainCount))/dim);
     int x = mainDomainNumber - (z*mainCount) - (y*dim);

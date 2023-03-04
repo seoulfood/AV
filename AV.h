@@ -158,7 +158,9 @@ namespace AnisoVoro {
             int layer {-1};
             VoxelIndex index;
             std::set<int> origins;
-            bool isParticle, isBoundary, isGhost {false};
+            bool isParticle {false};
+            bool isBoundary {false};
+            bool isGhost {false};
             //~VoxelBit();
             VoxelBit();
             VoxelBit(int i, bool isParticle, int particleNum, BoxDim vbd); 
