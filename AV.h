@@ -232,6 +232,11 @@ namespace AnisoVoro {
             //neither, particle, boundary == 0, 1, 2
             std::vector<int> ghostsToSend[6];
             std::vector<int> ghostsToRecv[6];
+            //Stop asking for communication when these are the length of the sides
+            int ghostsReceived[6] {0};
+            int ghostsSent[6] {0};
+
+            int unseenVoxs;
 
             void setDevice(int mode);
             void setDevice(int mode, int rank, int mpiWorldSize);
@@ -239,8 +244,12 @@ namespace AnisoVoro {
             void adjustGhostCells();
 
             void updateGhosts(int layer);
-            void sendRecvGhosts2D(int layer);
-            void integrateGhosts(std::vector<int> *ghosts);
+            void sendGhosts2D(int layer, int direction, int receiver, int begin, int end, int skip);
+            void recvGhosts2D(int layer, int direction, int sender);
+            void integrateGhosts(std::vector<int>& ghosts, int direction, int layer);
+            void beginEndSkipForGhosts(int direction, int *begin, int *end, int *skip);
+
+            bool allHaunted();
 
             void adjustVoxRefCorner();
             bool insideVoxBox(Position p);
