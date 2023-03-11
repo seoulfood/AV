@@ -226,6 +226,7 @@ namespace AnisoVoro {
             std::vector<VoxelBit> neighbors;
             std::queue<int> layerRun;
             std::queue<int> originRun;
+            std::queue<int> ghostRun;
             std::queue<int> boundaryIndices;
 
             //There's -1's between each particle 

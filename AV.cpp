@@ -887,7 +887,7 @@ void SimBox::initializeQueue() {
         }
     }
 
-    cout << "Rank " << this->dcomp.rank << " has " << count << " initial particle voxels." << endl;
+    //cout << "Rank " << this->dcomp.rank << " has " << count << " initial particle voxels." << endl;
     if(this->dcomp.P > 1){
         updateGhosts(1);
     }
@@ -929,18 +929,15 @@ void SimBox::runLayerByLayerMPI() {
         layerRun.pop(); 
         v = pVoxArr.at(i);
         if(v.layer != currentLayer) {
-            if(!allHaunted()){
-                updateGhosts(currentLayer);
-            }
             updateOrigins(currentLayer);
+            updateGhosts(currentLayer);
             //currentLayer += 1;
             currentLayer = v.layer;
-            if(currentLayer == 9){break;}
+            if(currentLayer == 4){break;}
         }
         updateNeighbors(currentLayer, v);
     }
     updateOrigins(currentLayer);
-
 }
 
 bool SimBox::allHaunted(){
@@ -949,6 +946,18 @@ bool SimBox::allHaunted(){
     bool g1 = (ghostsReceived[0] + 2 == voxBoxDim.x);
     bool g2 = (ghostsReceived[0] == voxBoxDim.y);
     bool g3 = (ghostsReceived[0] == voxBoxDim.y);
+    if(g0){
+        cout << "Rank " << this-dcomp.rank << "'s 0 direction is full!" << endl;
+    }
+    if(g1){
+        cout << "Rank " << this-dcomp.rank << "'s 1 direction is full!" << endl;
+    }
+    if(g2){
+        cout << "Rank " << this-dcomp.rank << "'s 2 direction is full!" << endl;
+    }
+    if(g3){
+        cout << "Rank " << this-dcomp.rank << "'s 3 direction is full!" << endl;
+    }
     //bool g4 = ;
     //bool g5 = ;
 
@@ -1032,7 +1041,7 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
         v.getNeighborsIndices2D(voxBoxDim, neighbors);
         for(int n = 0; n < num; n++) {
             nv = pVoxArr.at(neighbors[n]);
-            //if(v.isGhost && nv.isGhost){continue;}
+            if(v.isGhost && nv.isGhost){continue;}
             if(nv.layer == -1) {
             voidCount++;
             }
@@ -1078,22 +1087,22 @@ void SimBox::updateGhosts(int layer){
     int end; 
     int skip;
 
-    if(ghostsSent[0] + 2 < this->voxBoxDim.x){
+    if(ghostsSent[0] < this->voxBoxDim.x){
     //if(true){
         beginEndSkipForGhosts(0, &begin, &end, &skip);
         sendGhosts2D(layer, 0, this->dcomp.mainPlusY, begin, end, skip);
     }
-    if(ghostsReceived[1] + 2 < this->voxBoxDim.x){
+    if(ghostsReceived[1] < this->voxBoxDim.x){
     //if(true){
         recvGhosts2D(layer, 1, this->dcomp.mainMinusY);
     }
 
-    if(ghostsSent[1] + 2 < this->voxBoxDim.x){
+    if(ghostsSent[1] < this->voxBoxDim.x){
     //if(true){
         beginEndSkipForGhosts(1, &begin, &end, &skip);
         sendGhosts2D(layer, 1, this->dcomp.mainMinusY, begin, end, skip);
     }
-    if(ghostsReceived[0] + 2 < this->voxBoxDim.x){
+    if(ghostsReceived[0] < this->voxBoxDim.x){
     //if(true){
         recvGhosts2D(layer, 0, this->dcomp.mainPlusY);
     }
@@ -1117,8 +1126,15 @@ void SimBox::updateGhosts(int layer){
     //if(true){
         recvGhosts2D(layer, 2, this->dcomp.mainPlusX);
     }
-    /*
-    */
+
+    int i;
+    VoxelBit v;
+    while(!ghostRun.empty()){
+        i = ghostRun.front();
+        ghostRun.pop();
+        v = pVoxArr.at(i);
+        updateNeighbors(layer, v);
+    }
 
 }
 
@@ -1126,8 +1142,8 @@ void SimBox::beginEndSkipForGhosts(int direction, int *begin, int *end, int *ski
     int pVoxSize = static_cast<int>(pVoxArr.size());
     switch(direction){
         case 0:
-            *begin = pVoxSize - (voxBoxDim.x*2) + 2;
-            *end = pVoxSize - (voxBoxDim.x+1);
+            *begin = pVoxSize - (voxBoxDim.x*2) + 1;
+            *end = pVoxSize - (voxBoxDim.x);
             *skip = 1;
             break;
         case 1:
@@ -1349,13 +1365,13 @@ void SimBox::integrateGhosts(std::vector<int>& ghosts, int direction, int layer)
                 i =(pVoxSize - voxBoxDim.x + 1 + sharedEdgeNumber);
                 break;
             case 1:
-                i =(2 + sharedEdgeNumber);
+                i =(1 + sharedEdgeNumber);
                 break;
             case 2:
                 i =((voxBoxDim.x - 1) + (sharedEdgeNumber*voxBoxDim.x));
                 break;
             case 3:
-                i =(sharedEdgeNumber*voxBoxDim.x);
+                i =((sharedEdgeNumber)*voxBoxDim.x);
                 break;
         }
 
@@ -1376,13 +1392,16 @@ void SimBox::integrateGhosts(std::vector<int>& ghosts, int direction, int layer)
             v.origins.insert(o);
         }
         pVoxArr.at(i) = v;
-        if(needToUpdate){updateNeighbors(layer, v);}
+        //if(needToUpdate){updateNeighbors(layer, v);}
+        ghostRun.push(i);
+        //originUpdater(layer, v);
+
         //layerRun.push(i);
         originRun.push(i);
         numberReceived++;
     }
 
-    cout << "Rank " << this->dcomp.rank << " received and integrated " << numberReceived << " voxels." << endl;
+    //cout << "Rank " << this->dcomp.rank << " received and integrated " << numberReceived << " voxels." << endl;
 
     ghostsReceived[direction] += numberReceived;
 
@@ -1398,13 +1417,13 @@ void SimBox::sendGhosts2D(int layer, int direction, int receiver, int begin, int
     int n;
     int sendSize;
 
-    cout << "Rank " << this->dcomp.rank << " is trying to send to " << receiver << " with direction " << direction << endl;
+    //cout << "Rank " << this->dcomp.rank << " is trying to send to " << receiver << " with direction " << direction << endl;
 
     //Vector creation
     g = 0;
     n = 0;
     ghostsToSend[direction].clear();
-    for(int i = begin; i < end; i += skip){
+    for(int i = begin; i <= end; i += skip){
         v = pVoxArr.at(i);
         if(v.layer == layer){
             ghostsToSend[direction].push_back(n);
@@ -1429,9 +1448,10 @@ void SimBox::sendGhosts2D(int layer, int direction, int receiver, int begin, int
     sendSize = static_cast<int>(ghostsToSend[direction].size());
 
     MPI_Send(&sendSize, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
-    if(sendSize != 0){
+    //if(sendSize != 0){
+    if(g != 0){
         MPI_Send(&(ghostsToSend[direction])[0], sendSize, MPI_INT, receiver, 0, MPI_COMM_WORLD);
-        cout << "\tRank " << this->dcomp.rank << " sent " << g << " voxels." << endl;
+        //cout << "\tRank " << this->dcomp.rank << " sent " << g << " voxels in direction " << direction << ". And scanned through " << n << " voxels." << endl;
     }
     ghostsSent[direction] += g;
 
@@ -1440,7 +1460,7 @@ void SimBox::sendGhosts2D(int layer, int direction, int receiver, int begin, int
 void SimBox::recvGhosts2D(int layer, int direction, int sender){
     int recvSize;
     MPI_Recv(&recvSize, 1, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    if(recvSize != 0){
+    if(recvSize != 1){
         ghostsToRecv[direction].resize(recvSize);
         MPI_Recv(&(ghostsToRecv[direction])[0], recvSize, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         integrateGhosts(ghostsToRecv[direction], direction, layer);
