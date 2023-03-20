@@ -911,6 +911,7 @@ void SimBox::runLayerByLayer() {
         if(v.layer != currentLayer) {
             currentLayer += 1;
             updateOrigins(currentLayer);
+            if(currentLayer == 5){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -933,7 +934,7 @@ void SimBox::runLayerByLayerMPI() {
             updateGhosts(currentLayer);
             //currentLayer += 1;
             currentLayer = v.layer;
-            if(currentLayer == 4){break;}
+            if(currentLayer == 5){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -1023,26 +1024,37 @@ void SimBox::updateNeighbors(int currentLayer, VoxelBit& v) {
 void SimBox::updateOrigins(int currentLayer) {
     VoxelBit w;
     int o;
+    int i = 0;
     while(!originRun.empty()){
         o = originRun.front();
         originRun.pop();
         w = pVoxArr.at(o);
         originUpdater(currentLayer, w);
+        i++;
     }
+    if (this->dcomp.rank == 0){
+        cout << "We updated " << i << " origins for layer " << currentLayer << "." << endl;
+    }
+
 }
 
 void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
     VoxelBit nv;
     int voidCount = 0;
     bool override = false;
+    int g = 0;
     if (is2D) {
         int num = 8;
         int neighbors[8];
         v.getNeighborsIndices2D(voxBoxDim, neighbors);
         for(int n = 0; n < num; n++) {
             nv = pVoxArr.at(neighbors[n]);
-            if(v.isGhost && nv.isGhost){continue;}
+            if(v.isGhost && nv.isGhost){
+                g++;
+                continue;
+            }
             if(nv.layer == -1) {
+            //if(nv.layer == -1 || nv.layer - 1 == currentLayer) {
             voidCount++;
             }
             if(nv.layer == v.layer) {
@@ -1052,8 +1064,23 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
             }
         }
         if ((voidCount == 0 || v.origins.size() > 1) || (override)){
+            VoxelIndex a = v.index;
+ 
+            if (this->dcomp.rank == 0 && voidCount == 0){
+                cout << "We updated and origin to boundary because voidCount == 0\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
+            }
+
+            if (this->dcomp.rank == 0 && v.origins.size() > 1){
+                cout << "We updated and origin to boundary because v.origins.size() > 1\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
+            }
+
+            if (this->dcomp.rank == 0 && override){
+                cout << "We updated and origin to boundary because override\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
+            }
+
             v.isBoundary = true;
             pVoxArr.at(v.index.i) = v;
+
         }
     }
     /*
@@ -1087,44 +1114,52 @@ void SimBox::updateGhosts(int layer){
     int end; 
     int skip;
 
-    if(ghostsSent[0] < this->voxBoxDim.x){
-    //if(true){
+    //if(ghostsSent[0] < this->voxBoxDim.x){
+    if(true){
         beginEndSkipForGhosts(0, &begin, &end, &skip);
         sendGhosts2D(layer, 0, this->dcomp.mainPlusY, begin, end, skip);
     }
-    if(ghostsReceived[1] < this->voxBoxDim.x){
-    //if(true){
+    //if(ghostsReceived[1] < this->voxBoxDim.x){
+    if(true){
         recvGhosts2D(layer, 1, this->dcomp.mainMinusY);
     }
 
-    if(ghostsSent[1] < this->voxBoxDim.x){
-    //if(true){
+    //if(ghostsSent[1] < this->voxBoxDim.x){
+    if(true){
         beginEndSkipForGhosts(1, &begin, &end, &skip);
         sendGhosts2D(layer, 1, this->dcomp.mainMinusY, begin, end, skip);
     }
-    if(ghostsReceived[0] < this->voxBoxDim.x){
-    //if(true){
+    //if(ghostsReceived[0] < this->voxBoxDim.x){
+    if(true){
         recvGhosts2D(layer, 0, this->dcomp.mainPlusY);
     }
 
-    if(ghostsSent[0] < this->voxBoxDim.y){
-    //if(true){
+    //if(ghostsSent[0] < this->voxBoxDim.y){
+    if(true){
         beginEndSkipForGhosts(2, &begin, &end, &skip);
         sendGhosts2D(layer, 2, this->dcomp.mainPlusX, begin, end, skip);
     }
-    if(ghostsReceived[1] < this->voxBoxDim.y){
-    //if(true){
+    //if(ghostsReceived[1] < this->voxBoxDim.y){
+    if(true){
         recvGhosts2D(layer, 3, this->dcomp.mainMinusX);
     }
 
-    if(ghostsSent[1] < this->voxBoxDim.y){
-    //if(true){
+    //if(ghostsSent[1] < this->voxBoxDim.y){
+    if(true){
         beginEndSkipForGhosts(3, &begin, &end, &skip);
         sendGhosts2D(layer, 3, this->dcomp.mainMinusX, begin, end, skip);
     }
-    if(ghostsReceived[0] < this->voxBoxDim.y){
-    //if(true){
+    //if(ghostsReceived[0] < this->voxBoxDim.y){
+    if(true){
         recvGhosts2D(layer, 2, this->dcomp.mainPlusX);
+    }
+
+    if (this->dcomp.rank == 0){
+        cout << "We're updating origins in ghost >>>>>>>>>>" << endl;
+    }
+    updateOrigins(layer);
+    if (this->dcomp.rank == 0){
+        cout << "finished updating origins in ghost>>>>>>>>>>\n\n\n" << endl;
     }
 
     int i;
