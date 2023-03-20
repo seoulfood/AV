@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
     sim.placeShape(square, q, Position(28, 30, 0), 3);
     */
 
+
     if(rank == 0){
         stopPlacingShapes = MPI_Wtime();
         durationPlacingShapes = stopPlacingShapes - startPlacingShapes;
@@ -106,6 +107,10 @@ int main(int argc, char** argv) {
     }
     //start = high_resolution_clock::now();
     sim.runVoro();
+
+    cout << "<<<<<<<<<<<<<<<<<Rank " << rank << " has finished runVoro." << endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
     //stop = high_resolution_clock::now();
     //duration = duration_cast<microseconds>(stop - start);
     //cout << "Time taken to run voronoi: " << duration.count() 
