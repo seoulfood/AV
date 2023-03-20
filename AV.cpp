@@ -911,7 +911,7 @@ void SimBox::runLayerByLayer() {
         if(v.layer != currentLayer) {
             currentLayer += 1;
             updateOrigins(currentLayer);
-            if(currentLayer == 5){break;}
+            if(currentLayer == 9){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -930,11 +930,11 @@ void SimBox::runLayerByLayerMPI() {
         layerRun.pop(); 
         v = pVoxArr.at(i);
         if(v.layer != currentLayer) {
-            updateOrigins(currentLayer);
             updateGhosts(currentLayer);
+            updateOrigins(currentLayer);
             //currentLayer += 1;
             currentLayer = v.layer;
-            if(currentLayer == 5){break;}
+            if(currentLayer == 9){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -1029,11 +1029,12 @@ void SimBox::updateOrigins(int currentLayer) {
         o = originRun.front();
         originRun.pop();
         w = pVoxArr.at(o);
+        //if (w.isGhost){continue;}
         originUpdater(currentLayer, w);
         i++;
     }
     if (this->dcomp.rank == 0){
-        cout << "We updated " << i << " origins for layer " << currentLayer << "." << endl;
+        //cout << "We updated " << i << " origins for layer " << currentLayer << "." << endl;
     }
 
 }
@@ -1043,6 +1044,24 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
     int voidCount = 0;
     bool override = false;
     int g = 0;
+    VoxelIndex a = v.index;
+
+
+    if(v.origins.size() > 1 && !v.isBoundary && this->dcomp.rank == 3){
+        cout << "Rank " << this->dcomp.rank << " has a voxel with multiple origins that is not a boundary? " <<  "\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << "\tLayer: " << currentLayer << "\t Origins: ";
+
+        for (int const& oneOfOri : v.origins)
+        {
+            //cout << "Hell!" << endl;
+            cout << oneOfOri << ", ";
+        }
+
+
+        cout << endl;
+
+    }
+
+
     if (is2D) {
         int num = 8;
         int neighbors[8];
@@ -1053,9 +1072,9 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
                 g++;
                 continue;
             }
-            if(nv.layer == -1) {
-            //if(nv.layer == -1 || nv.layer - 1 == currentLayer) {
-            voidCount++;
+            //if(nv.layer == -1) {
+            if(nv.layer == -1 || nv.layer - 1 == currentLayer) {
+                voidCount++;
             }
             if(nv.layer == v.layer) {
                 if(nv.origins != v.origins && nv.origins.size() == 1){
@@ -1064,18 +1083,19 @@ void SimBox::originUpdater(int currentLayer, VoxelBit& v) {
             }
         }
         if ((voidCount == 0 || v.origins.size() > 1) || (override)){
-            VoxelIndex a = v.index;
  
-            if (this->dcomp.rank == 0 && voidCount == 0){
-                cout << "We updated and origin to boundary because voidCount == 0\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
-            }
+            //if (this->dcomp.rank == 0 && voidCount == 0){
 
-            if (this->dcomp.rank == 0 && v.origins.size() > 1){
-                cout << "We updated and origin to boundary because v.origins.size() > 1\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
-            }
+            if(false){
+                cout << "Rank " << this->dcomp.rank << " updated a boundary because " << (voidCount == 0) << " " << (v.origins.size() > 1) << " " << override <<  "\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << "\tLayer: " << currentLayer << "\t Origins: ";
+                //cout << "Rank " << this->dcomp.rank << " updated a boundary because " << (voidCount == 0) << " " << (v.origins.size() > 1) << " " << override <<  "\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << "\tLayer: " << currentLayer 
 
-            if (this->dcomp.rank == 0 && override){
-                cout << "We updated and origin to boundary because override\t Position: [" << a.x << "][" << a.y << "][" << a.z << "]\t GhostNeighbors: " << g << endl;
+                for (int const& oneOfOri : v.origins)
+                {
+                    cout << oneOfOri << ", ";
+                }
+
+                cout << endl;
             }
 
             v.isBoundary = true;
@@ -1155,11 +1175,11 @@ void SimBox::updateGhosts(int layer){
     }
 
     if (this->dcomp.rank == 0){
-        cout << "We're updating origins in ghost >>>>>>>>>>" << endl;
+        //cout << "We're updating origins in ghost >>>>>>>>>>" << endl;
     }
-    updateOrigins(layer);
+    //updateOrigins(layer);
     if (this->dcomp.rank == 0){
-        cout << "finished updating origins in ghost>>>>>>>>>>\n\n\n" << endl;
+        //cout << "finished updating origins in ghost>>>>>>>>>>\n\n\n" << endl;
     }
 
     int i;
@@ -1168,8 +1188,11 @@ void SimBox::updateGhosts(int layer){
         i = ghostRun.front();
         ghostRun.pop();
         v = pVoxArr.at(i);
+        originUpdater(layer, v);
         updateNeighbors(layer, v);
     }
+
+    //updateOrigins(layer);
 
 }
 
@@ -1199,6 +1222,256 @@ void SimBox::beginEndSkipForGhosts(int direction, int *begin, int *end, int *ski
     }
 }
 
+
+
+void SimBox::integrateGhosts(std::vector<int>& ghosts, int direction, int layer){
+    int size = static_cast<int>(ghosts.size());
+    int pVoxSize = static_cast<int>(pVoxArr.size());
+    int particleSetting;
+    int sharedEdgeNumber;
+    int i;
+    std::set<int> origins;
+    VoxelBit v;
+
+    int numberReceived = 0;
+
+    if(this->dcomp.rank == 3){
+        cout << "Rank 3's ghosts: " << "\t Layer: " << layer << "\tDirection: " << direction << endl; 
+    }
+
+    for(int a = 0; a < size; a++){
+        origins.clear();
+        if(this->dcomp.rank == 3){
+            cout << "\n\t" << ghosts.at(a) << ": ";
+        }
+ 
+        if(ghosts.at(a) == -1){break;}
+        sharedEdgeNumber = ghosts.at(a);
+        particleSetting = ghosts.at(a+1);
+        a += 2;
+
+        do{
+            if(this->dcomp.rank == 3){
+                cout << ghosts.at(a) << ", ";
+            }
+            origins.insert(ghosts.at(a));
+            a++;
+        }while(ghosts.at(a) != -1);
+    
+        switch(direction){
+            case 0:
+                i =(pVoxSize - voxBoxDim.x + 1 + sharedEdgeNumber);
+                break;
+            case 1:
+                i =(1 + sharedEdgeNumber);
+                break;
+            case 2:
+                i =((voxBoxDim.x - 1) + (sharedEdgeNumber*voxBoxDim.x));
+                break;
+            case 3:
+                i =((sharedEdgeNumber)*voxBoxDim.x);
+                break;
+        }
+
+        v = pVoxArr.at(i);
+        bool needToUpdate = false;
+        if(v.layer == -1){
+            v.layer = layer;
+            needToUpdate = true;
+        }
+        if(particleSetting == 1){
+            v.isParticle = true;
+        }
+        else if(particleSetting == 2){
+            v.isBoundary = true;
+        }
+
+        for(int o : origins){
+            //v.origins = origins;
+            v.origins.insert(o);
+        }
+
+
+        pVoxArr.at(i) = v;
+        //if(needToUpdate){updateNeighbors(layer, v);}
+        ghostRun.push(i);
+        //originUpdater(layer, v);
+
+        //layerRun.push(i);
+        //originRun.push(i);
+        numberReceived++;
+    }
+
+    if(this->dcomp.rank == 3){
+        cout  << endl;
+
+        cout << "Origins look like " << endl; 
+        for (int const& oriOne : origins)
+        {
+            std::cout << oriOne << ", ";
+        }
+
+        cout << endl;
+    }
+
+    //cout << "Rank " << this->dcomp.rank << " received and integrated " << numberReceived << " voxels." << endl;
+
+    ghostsReceived[direction] += numberReceived;
+
+}
+
+void SimBox::sendGhosts2D(int layer, int direction, int receiver, int begin, int end, int skip){
+    int pVoxSize = static_cast<int>(pVoxArr.size());
+    VoxelBit v;
+    int g;
+    int m;
+    int n;
+    int sendSize;
+
+    //cout << "Rank " << this->dcomp.rank << " is trying to send to " << receiver << " with direction " << direction << endl;
+
+    //Vector creation
+    g = 0;
+    n = 0;
+    ghostsToSend[direction].clear();
+    for(int i = begin; i <= end; i += skip){
+        v = pVoxArr.at(i);
+        if(v.layer == layer){
+            originUpdater(layer, v);
+            ghostsToSend[direction].push_back(n);
+
+            if(v.isParticle || v.isBoundary){
+                m = v.isParticle ? 1 : 2;
+                ghostsToSend[direction].push_back(m);
+            }
+            else{
+                ghostsToSend[direction].push_back(0);
+            }
+
+            for(auto& ori : v.origins){
+                ghostsToSend[direction].push_back(ori);
+            }
+            g++;
+            ghostsToSend[direction].push_back(-1);
+        }
+        n++;
+    }
+    ghostsToSend[direction].push_back(-1);
+    sendSize = static_cast<int>(ghostsToSend[direction].size());
+
+    MPI_Send(&sendSize, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+    //if(sendSize != 0){
+    if(g != 0){
+        MPI_Send(&(ghostsToSend[direction])[0], sendSize, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+        //cout << "\tRank " << this->dcomp.rank << " sent " << g << " voxels in direction " << direction << ". And scanned through " << n << " voxels." << endl;
+    }
+    ghostsSent[direction] += g;
+
+}
+
+void SimBox::recvGhosts2D(int layer, int direction, int sender){
+    int recvSize;
+    MPI_Recv(&recvSize, 1, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    if(recvSize != 1){
+        ghostsToRecv[direction].resize(recvSize);
+        MPI_Recv(&(ghostsToRecv[direction])[0], recvSize, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        integrateGhosts(ghostsToRecv[direction], direction, layer);
+    }
+
+}
+
+
+DomainDecomposition::DomainDecomposition(){
+    this->rank = 1;
+    this->P = 1;
+}
+DomainDecomposition::DomainDecomposition(int rank, int P){
+    this->rank = rank;
+    this->P = P;
+}
+
+void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
+    this->length = floor(sqrt(this->P));
+    this->mainCount = std::pow(length, 2);
+    this->mainDomainNumber = this->rank % mainCount;
+    this->localNumber = this->rank / mainCount; 
+
+
+    int xSpace = xLength / length; 
+    int ySpace = yLength / length; 
+    int zSpace = 0; 
+
+    int xMod = mainDomainNumber % length;
+    int yMod = mainDomainNumber / length;
+
+    this->numberInLocal = (mainDomainNumber >= P % mainCount) ? (P/mainCount) : ((P/mainCount) + 1);
+    int localxMod = xSpace / numberInLocal;
+
+    if(numberInLocal == 1){
+        this->localXMin = xSpace * xMod;
+        this->localXMax = (xMod == xLength - 1) ? (xLength): (localXMin + xSpace - 1);
+    }
+    else{
+        this->localXMin = (xSpace * xMod) + (localNumber * localxMod);
+        if(localNumber + 1 == numberInLocal){
+            this->localXMax = (xMod == xLength - 1) ? (xLength): ((xSpace*xMod) + xSpace - 1);
+        }
+        else{
+            this->localXMax = (localXMin + (localxMod) - 1);
+        }
+    }
+
+    this->localYMin = ySpace * yMod;
+    this->localYMax = (yMod == length - 1) ? (yLength): (localYMin + ySpace - 1);
+
+    this->localZMin = 0;
+    this->localZMax = 0;
+
+    mainNeighbors2D();
+}
+
+
+void DomainDecomposition::mainNeighbors2D(){
+    if(mainCount < 4){
+        this->mainPlusX = (this->rank + 1 == this->P) ? 0 : this->rank + 1;
+        this->mainPlusX = (this->rank == 0) ? this->P - 1 : this->rank - 1;
+        this->mainPlusY = this->rank;
+        this->mainMinusY = this->rank;
+    }
+    else{
+        int dim = floor(sqrt(mainCount));
+        int z = floor(mainDomainNumber/(mainCount));
+        int y = floor((mainDomainNumber- (z*mainCount))/dim);
+        int x = mainDomainNumber - (z*mainCount) - (y*dim);
+    
+        int minusXtemp, plusXtemp;
+        int minusYtemp, plusYtemp;
+        int minusZtemp, plusZtemp;
+     
+        plusXtemp = (x != dim - 1) ? (1) : (-dim + 1);
+        minusXtemp = (x != 0) ? (-1) : (dim - 1);
+        minusYtemp = (y != dim - 1) ? (dim) : (-dim * (dim - 1));
+        plusYtemp = (y != 0) ? (-dim) : (dim * (dim - 1));
+        minusZtemp = -1;
+        plusZtemp = -1;
+    
+        this->mainMinusX = mainDomainNumber + plusXtemp;
+        this->mainPlusX = mainDomainNumber + minusXtemp;
+        this->mainMinusY = mainDomainNumber + plusYtemp;
+        this->mainPlusY = mainDomainNumber + minusYtemp;
+    }
+
+}
+
+/*
+void DomainDecomposition::sendData(&int data, int recvRank){
+
+}
+
+void DomainDecomposition::ReceiveData(&int data, int sendRank){
+
+}
+*/
 
 /*
 void SimBox::updateGhosts(int layer){
@@ -1370,228 +1643,6 @@ void SimBox::updateGhosts(int layer){
             integrateGhosts(ghostsToRecv[2], 2, layer);
         }
     }
-
-}
-*/
-
-void SimBox::integrateGhosts(std::vector<int>& ghosts, int direction, int layer){
-    int size = static_cast<int>(ghosts.size());
-    int pVoxSize = static_cast<int>(pVoxArr.size());
-    int particleSetting;
-    int sharedEdgeNumber;
-    int i;
-    std::set<int> origins;
-    VoxelBit v;
-
-    int numberReceived = 0;
-
-    for(int a = 0; a < size; a++){
-        if(ghosts.at(a) == -1){break;}
-        sharedEdgeNumber = ghosts.at(a);
-        particleSetting = ghosts.at(a+1);
-        a += 2;
-        do{
-            origins.insert(ghosts.at(a));
-            a++;
-        }while(ghosts.at(a) != -1);
-    
-        switch(direction){
-            case 0:
-                i =(pVoxSize - voxBoxDim.x + 1 + sharedEdgeNumber);
-                break;
-            case 1:
-                i =(1 + sharedEdgeNumber);
-                break;
-            case 2:
-                i =((voxBoxDim.x - 1) + (sharedEdgeNumber*voxBoxDim.x));
-                break;
-            case 3:
-                i =((sharedEdgeNumber)*voxBoxDim.x);
-                break;
-        }
-
-        v = pVoxArr.at(i);
-        bool needToUpdate = false;
-        if(v.layer == -1){
-            v.layer = layer;
-            needToUpdate = true;
-        }
-        if(particleSetting == 1){
-            v.isParticle = true;
-        }
-        else if(particleSetting == 2){
-            v.isBoundary = true;
-        }
-
-        for(int o : origins){
-            v.origins.insert(o);
-        }
-        pVoxArr.at(i) = v;
-        //if(needToUpdate){updateNeighbors(layer, v);}
-        ghostRun.push(i);
-        //originUpdater(layer, v);
-
-        //layerRun.push(i);
-        originRun.push(i);
-        numberReceived++;
-    }
-
-    //cout << "Rank " << this->dcomp.rank << " received and integrated " << numberReceived << " voxels." << endl;
-
-    ghostsReceived[direction] += numberReceived;
-
-}
-
-
-//HORRENDOUS LONG SUBROUTINE
-void SimBox::sendGhosts2D(int layer, int direction, int receiver, int begin, int end, int skip){
-    int pVoxSize = static_cast<int>(pVoxArr.size());
-    VoxelBit v;
-    int g;
-    int m;
-    int n;
-    int sendSize;
-
-    //cout << "Rank " << this->dcomp.rank << " is trying to send to " << receiver << " with direction " << direction << endl;
-
-    //Vector creation
-    g = 0;
-    n = 0;
-    ghostsToSend[direction].clear();
-    for(int i = begin; i <= end; i += skip){
-        v = pVoxArr.at(i);
-        if(v.layer == layer){
-            ghostsToSend[direction].push_back(n);
-
-            if(v.isParticle || v.isBoundary){
-                m = v.isParticle ? 1 : 2;
-                ghostsToSend[direction].push_back(m);
-            }
-            else{
-                ghostsToSend[direction].push_back(0);
-            }
-
-            for(auto& ori : v.origins){
-                ghostsToSend[direction].push_back(ori);
-            }
-            g++;
-            ghostsToSend[direction].push_back(-1);
-        }
-        n++;
-    }
-    ghostsToSend[direction].push_back(-1);
-    sendSize = static_cast<int>(ghostsToSend[direction].size());
-
-    MPI_Send(&sendSize, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
-    //if(sendSize != 0){
-    if(g != 0){
-        MPI_Send(&(ghostsToSend[direction])[0], sendSize, MPI_INT, receiver, 0, MPI_COMM_WORLD);
-        //cout << "\tRank " << this->dcomp.rank << " sent " << g << " voxels in direction " << direction << ". And scanned through " << n << " voxels." << endl;
-    }
-    ghostsSent[direction] += g;
-
-}
-
-void SimBox::recvGhosts2D(int layer, int direction, int sender){
-    int recvSize;
-    MPI_Recv(&recvSize, 1, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    if(recvSize != 1){
-        ghostsToRecv[direction].resize(recvSize);
-        MPI_Recv(&(ghostsToRecv[direction])[0], recvSize, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        integrateGhosts(ghostsToRecv[direction], direction, layer);
-    }
-
-}
-
-
-DomainDecomposition::DomainDecomposition(){
-    this->rank = 1;
-    this->P = 1;
-}
-DomainDecomposition::DomainDecomposition(int rank, int P){
-    this->rank = rank;
-    this->P = P;
-}
-
-void DomainDecomposition::divideSimBox2D(int xLength, int yLength){
-    this->length = floor(sqrt(this->P));
-    this->mainCount = std::pow(length, 2);
-    this->mainDomainNumber = this->rank % mainCount;
-    this->localNumber = this->rank / mainCount; 
-
-
-    int xSpace = xLength / length; 
-    int ySpace = yLength / length; 
-    int zSpace = 0; 
-
-    int xMod = mainDomainNumber % length;
-    int yMod = mainDomainNumber / length;
-
-    this->numberInLocal = (mainDomainNumber >= P % mainCount) ? (P/mainCount) : ((P/mainCount) + 1);
-    int localxMod = xSpace / numberInLocal;
-
-    if(numberInLocal == 1){
-        this->localXMin = xSpace * xMod;
-        this->localXMax = (xMod == xLength - 1) ? (xLength): (localXMin + xSpace - 1);
-    }
-    else{
-        this->localXMin = (xSpace * xMod) + (localNumber * localxMod);
-        if(localNumber + 1 == numberInLocal){
-            this->localXMax = (xMod == xLength - 1) ? (xLength): ((xSpace*xMod) + xSpace - 1);
-        }
-        else{
-            this->localXMax = (localXMin + (localxMod) - 1);
-        }
-    }
-
-    this->localYMin = ySpace * yMod;
-    this->localYMax = (yMod == length - 1) ? (yLength): (localYMin + ySpace - 1);
-
-    this->localZMin = 0;
-    this->localZMax = 0;
-
-    mainNeighbors2D();
-}
-
-
-void DomainDecomposition::mainNeighbors2D(){
-    if(mainCount < 4){
-        this->mainPlusX = (this->rank + 1 == this->P) ? 0 : this->rank + 1;
-        this->mainPlusX = (this->rank == 0) ? this->P - 1 : this->rank - 1;
-        this->mainPlusY = this->rank;
-        this->mainMinusY = this->rank;
-    }
-    else{
-        int dim = floor(sqrt(mainCount));
-        int z = floor(mainDomainNumber/(mainCount));
-        int y = floor((mainDomainNumber- (z*mainCount))/dim);
-        int x = mainDomainNumber - (z*mainCount) - (y*dim);
-    
-        int minusXtemp, plusXtemp;
-        int minusYtemp, plusYtemp;
-        int minusZtemp, plusZtemp;
-     
-        plusXtemp = (x != dim - 1) ? (1) : (-dim + 1);
-        minusXtemp = (x != 0) ? (-1) : (dim - 1);
-        minusYtemp = (y != dim - 1) ? (dim) : (-dim * (dim - 1));
-        plusYtemp = (y != 0) ? (-dim) : (dim * (dim - 1));
-        minusZtemp = -1;
-        plusZtemp = -1;
-    
-        this->mainMinusX = mainDomainNumber + plusXtemp;
-        this->mainPlusX = mainDomainNumber + minusXtemp;
-        this->mainMinusY = mainDomainNumber + plusYtemp;
-        this->mainPlusY = mainDomainNumber + minusYtemp;
-    }
-
-}
-
-/*
-void DomainDecomposition::sendData(&int data, int recvRank){
-
-}
-
-void DomainDecomposition::ReceiveData(&int data, int sendRank){
 
 }
 */
