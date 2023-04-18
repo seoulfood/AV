@@ -501,7 +501,7 @@ void SimBox::setVoxel(Position p, bool isParticle, int particleNum = -1) {
     adjustInputPosition(p);
     int i = indexFromPosition(p);
     if(i >= static_cast<int>(this->pVoxArr.size())){
-        cout << "trying to place something outside of the box" << endl;
+        //cout << "trying to place something outside of the box" << endl;
     }
     else{
         pVoxArr.at(i) = VoxelBit(i, isParticle, particleNum, voxBoxDim, this->voxRefCorner);
@@ -793,7 +793,10 @@ void SimBox::setDevice(int mode, int rank, int mpiWorldSize){
 void SimBox::runVoro(){
     double start;
     double stop;
+    
+    MPI_Barrier(MPI_COMM_WORLD);
     if(this->dcomp.rank == 0){
+        cout << "Begin Timing Voronoi" << endl;
         start = MPI_Wtime();
     }
     if(this->mode == 0 || this->dcomp.P == 1)//Using plain Serial
@@ -807,6 +810,7 @@ void SimBox::runVoro(){
         runLayerByLayerMPI();
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
     if(this->dcomp.rank == 0){
         stop = MPI_Wtime();
         double duration = stop - start;
@@ -911,7 +915,7 @@ void SimBox::runLayerByLayer() {
         if(v.layer != currentLayer) {
             currentLayer += 1;
             updateOrigins(currentLayer);
-            if(currentLayer == 9){break;}
+            if(currentLayer == 8){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -933,11 +937,11 @@ void SimBox::runLayerByLayerMPI() {
             updateGhosts(currentLayer);
             updateOrigins(currentLayer);
             //currentLayer += 1;
-            if(this->dcomp.rank == 3){
-                cout << "\t and going onto something with layer" << v.layer << endl;
-            }
+            //if(this->dcomp.rank == 3){
+                //cout << "\t and going onto something with layer" << v.layer << endl;
+            //}
             currentLayer = v.layer;
-            if(currentLayer == 9){break;}
+            if(currentLayer == 8){break;}
         }
         updateNeighbors(currentLayer, v);
     }
@@ -1209,7 +1213,7 @@ void SimBox::updateGhosts(int layer){
         originUpdater(layer, v);
         //layerRun.push(i);
         if(this->dcomp.rank == 3 && a == 0){
-            cout << "Just stored something with layer " << v.layer;
+            //cout << "Just stored something with layer " << v.layer;
         }
         a++;
         updateNeighbors(layer, v);

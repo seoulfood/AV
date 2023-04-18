@@ -156,6 +156,7 @@ namespace AnisoVoro {
     class VoxelBit {
         public:
             int layer {-1};
+            int fullNeighbors {0};
             VoxelIndex index;
             std::set<int> origins;
             bool isParticle {false};

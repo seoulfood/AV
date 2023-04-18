@@ -23,8 +23,8 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &P);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    double xLength = 40;
-    double yLength = 40;
+    double xLength = 100;
+    double yLength = 100;
     double zLength = 0;
     if(argc < 3){
         std::cout << "ERROR CODE 1:" << std::endl;
@@ -54,16 +54,34 @@ int main(int argc, char** argv) {
             shapeSize = shapeSize + 1;
         }
     }
-    std::vector<Position> unitSquareArr(shapeSize);
+    std::vector<Position> shapeArr(shapeSize);
     //cout << "Shape size is " << shapeSize << endl;
     shapeSize = 0;
     for (double x = 0; x < 5; x = x + (1/voxDegree)){
         for(double y = 0; y < 3; y = y + (1/voxDegree)){
-            unitSquareArr.at(shapeSize) = Position(x, y, 0);
+            shapeArr.at(shapeSize) = Position(x, y, 0);
             shapeSize = shapeSize + 1;
         }
     }
-    Shape square(unitSquareArr);
+    Shape tallRec(shapeArr);
+
+    int shapeSize = 0;
+    for (double x = 0; x < 2; x = x + (1/voxDegree)){
+        for(double y = 0; y < 10; y = y + (1/voxDegree)){
+            shapeSize = shapeSize + 1;
+        }
+    }
+    std::vector<Position> shapeArr(shapeSize);
+    //cout << "Shape size is " << shapeSize << endl;
+    shapeSize = 0;
+    for (double x = 0; x < 2; x = x + (1/voxDegree)){
+        for(double y = 0; y < 10; y = y + (1/voxDegree)){
+            shapeArr.at(shapeSize) = Position(x, y, 0);
+            shapeSize = shapeSize + 1;
+        }
+    }
+    Shape longRec(shapeArr);
+ 
     double angle;
     Quaternion q;
 
@@ -82,10 +100,27 @@ int main(int argc, char** argv) {
         
     }
 
-    sim.placeShape(square, q, Position(1, 17, 0), 0);
-    sim.placeShape(square, q, Position(5, 28, 0), 1);
-    sim.placeShape(square, q, Position(28, 17, 0), 2);
-    sim.placeShape(square, q, Position(21, 30, 0), 3);
+//    sim.placeShape(tallRec, q, Position(1, 17, 0), 0);
+//    sim.placeShape(tallRec, q, Position(5, 28, 0), 1);
+//    sim.placeShape(tallRec, q, Position(28, 17, 0), 2);
+//    sim.placeShape(tallRec, q, Position(21, 30, 0), 3);
+
+
+    int particleNum = 0;
+    for(int x = 0; x < 95; x+=20){
+        for(int y = 0; y < 95; y+=10){
+            sim.placeShape(tallRec, q, Position(x, y, 0), particleNum);
+            particleNum++;
+        }
+    }
+
+    for(int x = 10; x < 95; x+=20){
+        for(int y = 5; y < 95; y+=10){
+            sim.placeShape(tallRec, q, Position(x, y, 0), particleNum);
+            particleNum++;
+        }
+    }
+ 
  
     /*
     sim.placeShape(square, q, Position(1, 7, 0), 0);
