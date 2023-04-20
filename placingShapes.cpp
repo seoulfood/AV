@@ -23,8 +23,8 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &P);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    double xLength = 100;
-    double yLength = 100;
+    double xLength = 1000;
+    double yLength = 1000;
     double zLength = 0;
     if(argc < 3){
         std::cout << "ERROR CODE 1:" << std::endl;
@@ -39,10 +39,6 @@ int main(int argc, char** argv) {
     //pentagon area = 0.25 * sqrt(5*(5 + (2*sqrt(5))))pow(s,2)
     //where s is the length of one of the sides
     //std::vector<Position> unitPentagon(2*pow(voxDegree,2));
-    double start;
-    if(rank == 0){
-        start = MPI_Wtime();
-    }
     //SimBox sim = SimBox(xLength, yLength, zLength, voxArr, voxDegree);
     
     SimBox sim;
@@ -65,13 +61,13 @@ int main(int argc, char** argv) {
     }
     Shape tallRec(shapeArr);
 
-    int shapeSize = 0;
+    shapeSize = 0;
     for (double x = 0; x < 2; x = x + (1/voxDegree)){
         for(double y = 0; y < 10; y = y + (1/voxDegree)){
             shapeSize = shapeSize + 1;
         }
     }
-    std::vector<Position> shapeArr(shapeSize);
+    shapeArr.resize(shapeSize);
     //cout << "Shape size is " << shapeSize << endl;
     shapeSize = 0;
     for (double x = 0; x < 2; x = x + (1/voxDegree)){
@@ -107,16 +103,16 @@ int main(int argc, char** argv) {
 
 
     int particleNum = 0;
-    for(int x = 0; x < 95; x+=20){
-        for(int y = 0; y < 95; y+=10){
+    for(int x = 0; x < xLength; x+=60){
+        for(int y = 0; y < yLength; y+=50){
             sim.placeShape(tallRec, q, Position(x, y, 0), particleNum);
             particleNum++;
         }
     }
 
-    for(int x = 10; x < 95; x+=20){
-        for(int y = 5; y < 95; y+=10){
-            sim.placeShape(tallRec, q, Position(x, y, 0), particleNum);
+    for(int x = 20; x < xLength; x+=60){
+        for(int y = 5; y < yLength; y+=40){
+            sim.placeShape(longRec, q, Position(x, y, 0), particleNum);
             particleNum++;
         }
     }
@@ -134,18 +130,14 @@ int main(int argc, char** argv) {
         stopPlacingShapes = MPI_Wtime();
         durationPlacingShapes = stopPlacingShapes - startPlacingShapes;
         cout << "Time taken to place shapes: " << durationPlacingShapes << " microseconds" << endl;
-        stop = MPI_Wtime();
-        //duration = duration_cast<microseconds>(stop - start);
-        duration = stop - start;
-        cout << "Time taken to initialize voronoi: " << duration 
-             << " microseconds" << endl;
+        cout << "Ranks: " << P << endl;
+        cout << "voxDegree: " << voxDegree << endl;
     }
-    //start = high_resolution_clock::now();
     sim.runVoro();
 
-    cout << "<<<<<<<<<<<<<<<<<Rank " << rank << " has finished runVoro." << endl;
+    //cout << "<<<<<<<<<<<<<<<<<Rank " << rank << " has finished runVoro." << endl;
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     //stop = high_resolution_clock::now();
     //duration = duration_cast<microseconds>(stop - start);
     //cout << "Time taken to run voronoi: " << duration.count() 

@@ -796,7 +796,7 @@ void SimBox::runVoro(){
     
     MPI_Barrier(MPI_COMM_WORLD);
     if(this->dcomp.rank == 0){
-        cout << "Begin Timing Voronoi" << endl;
+        //cout << "Begin Timing Voronoi" << endl;
         start = MPI_Wtime();
     }
     if(this->mode == 0 || this->dcomp.P == 1)//Using plain Serial
@@ -915,7 +915,7 @@ void SimBox::runLayerByLayer() {
         if(v.layer != currentLayer) {
             currentLayer += 1;
             updateOrigins(currentLayer);
-            if(currentLayer == 8){break;}
+            //if(currentLayer == 8){break;}
         }
         updateNeighbors(currentLayer, v);
     }
